@@ -10,24 +10,10 @@ Gather information from specified vCenter servers and outputs to Excel
 ### https://github.com/dfinke/ImportExcel
 #>
 
-#Requires -Module ImportExcel
-#Requires -Module VMware.PowerCLI
-
 #region Configure variables
 $Date = Get-Date -Format yyyyMMdd
 $LogFile = "C:\Temp\vCenter\vCenter_Report_$Date.xlsx"
 $VCServers = "server1.acme.com","server2.acme.com"
-#endregion
-
-#region Configure arrays
-$ClusterData = @()
-$HostData = @()
-$HostNicData = @()
-$VMData = @()
-$VMNicData = @()
-$VMDriveData = @()
-$VMHardDiskData = @()
-$DatastoresData = @()
 #endregion
 
 #region Function: Change data sizes to legible values; converts number to string
@@ -54,6 +40,61 @@ Function Get-Size([double]$DataSize){
     }
     $DataValue
 }
+#endregion
+
+#region Function: Convert number of object items into Excel column headers
+Function Get-ColumnName ([int]$ColumnCount){
+    If(($ColumnCount -le 702) -and ($ColumnCount -ge 1)){
+        $ColumnCount = [Math]::Floor($ColumnCount)
+        $CharStart = 64
+        $FirstCharacter = $null
+
+        # Convert number into double letter column name (AA-ZZ)
+        If($ColumnCount -gt 26){
+            $FirstNumber = [Math]::Floor(($ColumnCount)/26)
+            $SecondNumber = ($ColumnCount) % 26
+
+            # Reset increment for base-26
+            If($SecondNumber -eq 0){
+                $FirstNumber--
+                $SecondNumber = 26
+            }
+
+            # Left-side column letter (first character from left to right)
+            $FirstLetter = [int]($FirstNumber + $CharStart)
+            $FirstCharacter = [char]$FirstLetter
+
+            # Right-side column letter (second character from left to right)
+            $SecondLetter = $SecondNumber + $CharStart
+            $SecondCharacter = [char]$SecondLetter
+
+            # Combine both letters into column name
+            $CharacterOutput = $FirstCharacter + $SecondCharacter
+        }
+
+        # Convert number into single letter column name (A-Z)
+        Else{
+            $CharacterOutput = [char]($ColumnCount + $CharStart)
+        }
+    }
+    Else{
+        $CharacterOutput = "ZZ"
+    }
+
+    # Output column name
+    $CharacterOutput
+}
+#endregion
+
+#region Configure arrays
+$ClusterData = @()
+$HostData = @()
+$HostNicData = @()
+$VMData = @()
+$VMNicData = @()
+$VMDriveData = @()
+$VMHardDiskData = @()
+$DatastoresData = @()
 #endregion
 
 # Connect to vCenters and retrieve data
@@ -225,79 +266,86 @@ ForEach($VCServer in $VCServers){
 }
 
 #region Output to Excel
-$HeaderRow = ("!`$A`$1:`$ZZ`$1")
 
 # Cluster sheet
-$ClusterDataStyle = New-ExcelStyle -Range "Clusters$HeaderRow" -HorizontalAlignment Center
+$ClusterColumnCount = Get-ColumnName ($ClusterData | Get-Member | Where-Object{$_.MemberType -match "NoteProperty"} | Measure-Object).Count
+$ClusterHeader = "`$A`$1:`$$ClusterColumnCount`$1"
+$ClusterDataStyle = New-ExcelStyle -Range "Clusters!$ClusterHeader" -HorizontalAlignment Center
 $ClusterData | Sort-Object Datacenter,Cluster | Export-Excel -Path $LogFile -AutoSize -FreezeTopRow -BoldTopRow -WorkSheetname "Clusters" -Style $ClusterDataStyle
 
 # Host sheet
+$HostsColumnCount = Get-ColumnName ($HostData | Get-Member | Where-Object{$_.MemberType -match "NoteProperty"} | Measure-Object).Count
+$HostHeader = "`$A`$1:`$$HostsColumnCount`$1"
 $HostDataLastRow = ($HostData | Measure-Object).Count + 1
-$HostDataStyle = New-ExcelStyle -Range "Hosts$HeaderRow" -HorizontalAlignment Center
+$HostDataStyle = New-ExcelStyle -Range "Hosts!$HostHeader" -HorizontalAlignment Center
 If($HostDataLastRow -gt 1){
-    $MMColumn = "Hosts!`$D`$2:`$D`$$HostDataLastRow"
-    $LockdownColumn = "Hosts!`$E`$2:`$E`$$HostDataLastRow"
-    $NTPColumn = "Hosts!`$N`$2:`$N`$$HostDataLastRow"
-    $HostData | Sort-Object Name | Export-Excel -Path $LogFile -AutoSize -FreezeTopRow -BoldTopRow -WorkSheetname "Hosts" -Style $HostDataStyle -ConditionalText $(
-        New-ConditionalText -Range $MMColumn -ConditionalType ContainsText "TRUE" -ConditionalTextColor Brown -BackgroundColor Wheat
-        New-ConditionalText -Range $LockdownColumn -ConditionalType ContainsText "lockdownDisabled" -ConditionalTextColor Brown -BackgroundColor Wheat
-        New-ConditionalText -Range $NTPColumn -ConditionalType NotContainsText "172.16.127.253, 172.16.255.253" -ConditionalTextColor Brown -BackgroundColor Wheat
-    )
+    $HostDataConditionalText = @()
+    $HostDataConditionalText += New-ConditionalText -Range "Hosts!`$D`$2:`$D`$$HostDataLastRow" -ConditionalType ContainsText "TRUE" -ConditionalTextColor Brown -BackgroundColor Wheat
+    $HostDataConditionalText += New-ConditionalText -Range "Hosts!`$E`$2:`$E`$$HostDataLastRow" -ConditionalType ContainsText "lockdownDisabled" -ConditionalTextColor Brown -BackgroundColor Wheat
+    $HostDataConditionalText += New-ConditionalText -Range "Hosts!`$N`$2:`$N`$$HostDataLastRow" -ConditionalType NotContainsText "tick.ia.doi.net, tock.ia.doi.net" -ConditionalTextColor Brown -BackgroundColor Wheat
+    $HostData | Sort-Object Name | Export-Excel -Path $LogFile -AutoSize -FreezeTopRow -BoldTopRow -WorkSheetname "Hosts" -Style $HostDataStyle -ConditionalText $HostDataConditionalText
 }
 
 # Host NIC sheet
-$HostNicDataStyle = New-ExcelStyle -Range "'Host NICs'$HeaderRow" -HorizontalAlignment Center
+$HostNicColumnCount = Get-ColumnName ($HostNicData | Get-Member | Where-Object{$_.MemberType -match "NoteProperty"} | Measure-Object).Count
+$HostNicHeader = "`$A`$1:`$$HostNicColumnCount`$1"
+$HostNicDataStyle = New-ExcelStyle -Range "'Host NICs!'$HostNicHeader" -HorizontalAlignment Center
 $HostNicData | Sort-Object Host,Name | Export-Excel -Path $LogFile -AutoSize -FreezeTopRow -BoldTopRow -WorkSheetname "Host NICs" -Style $HostNicDataStyle
 
 # VM sheet
+$VMDataColumnCount = Get-ColumnName ($HostNicData | Get-Member | Where-Object{$_.MemberType -match "NoteProperty"} | Measure-Object).Count
+$VMDataHeader = "`$A`$1:`$$VMDataColumnCount`$1"
 $VMDataLastRow = ($VMData | Measure-Object).Count + 1
 If($VMDataLastRow -gt 1){
     $VMDataUsedSpaceColumn = "'VMs'!`$L`$2:`$L`$$VMDataLastRow"
     $VMDataStyle = @()
-    $VMDataStyle += New-ExcelStyle -Range "VMs$HeaderRow" -HorizontalAlignment Center
+    $VMDataStyle += New-ExcelStyle -Range "VMs!$VMDataHeader" -HorizontalAlignment Center
     $VMDataStyle += New-ExcelStyle -Range $VMDataUsedSpaceColumn -NumberFormat '0'
     $VMData | Sort-Object Name | Export-Excel -Path $LogFile -AutoSize -FreezeTopRow -BoldTopRow -WorkSheetname "VMs" -Style $VMDataStyle
 }
 
 # VM NIC sheet
-$VMNicDataStyle = New-ExcelStyle -Range "'VM NICs'$HeaderRow" -HorizontalAlignment Center
+$VMNicDataColumnCount = Get-ColumnName ($VMNicData | Get-Member | Where-Object{$_.MemberType -match "NoteProperty"} | Measure-Object).Count
+$VMNicHeader = "`$A`$1:`$$VMNicDataColumnCount`$1"
+$VMNicDataStyle = New-ExcelStyle -Range "'VM NICs!'$VMNicHeader" -HorizontalAlignment Center
 $VMNicData | Sort-Object VM | Export-Excel -Path $LogFile -AutoSize -FreezeTopRow -BoldTopRow -WorkSheetname "VM NICs" -Style $VMNicDataStyle
 
 # VM Disk sheet
+$VMHardDiskColumnCount = Get-ColumnName ($VMHardDiskData | Get-Member | Where-Object{$_.MemberType -match "NoteProperty"} | Measure-Object).Count
+$VMHardDiskHeader = "`$A`$1:`$$VMHardDiskColumnCount`$1"
 $VMHDDataLastRow = ($VMHardDiskData | Measure-Object).Count + 1
 If($VMHDDataLastRow -gt 1){
-    $VMHDDataCapacityColumn = "'VM Disks'!`$C`$2:`$C`$$VMHDDataLastRow"
     $VMHDDataStyle = @()
-    $VMHDDataStyle += New-ExcelStyle -Range "'VM Disks'$HeaderRow" -HorizontalAlignment Center
-    $VMHDDataStyle += New-ExcelStyle -Range $VMHDDataCapacityColumn -NumberFormat '0'
-    $VMHDFormatColumn = "'VM Disks'!`$F`$2:`$F`$$VMHDDataLastRow"
-    $VMHardDiskData | Sort-Object VM | Export-Excel -Path $LogFile -AutoSize -FreezeTopRow -BoldTopRow -WorkSheetname "VM Disks" -Style $VMHDDataStyle -ConditionalFormat $(
-        New-ConditionalText -Range $VMHDFormatColumn -ConditionalType NotContainsText "Thin" -ConditionalTextColor Maroon -BackgroundColor Pink
-    )
+    $VMHDDataStyle += New-ExcelStyle -Range "'VM Disks!'$VMHardDiskHeader" -HorizontalAlignment Center
+    $VMHDDataStyle += New-ExcelStyle -Range "'VM Disks'!`$C`$2:`$C`$$VMHDDataLastRow" -NumberFormat '0'
+    $VMHDDataConditionalText = @()
+    $VMHDDataConditionalText += New-ConditionalText -Range "'VM Disks'!`$F`$2:`$F`$$VMHDDataLastRow" -ConditionalType NotContainsText "Thin" -ConditionalTextColor Maroon -BackgroundColor Pink
+    $VMHardDiskData | Sort-Object VM | Export-Excel -Path $LogFile -AutoSize -FreezeTopRow -BoldTopRow -WorkSheetname "VM Disks" -Style $VMHDDataStyle -ConditionalFormat $VMHDDataConditionalText
 }
 
 # VM Drive sheet
+$VMDriveDataColumnCount = Get-ColumnName ($VMDriveData | Get-Member | Where-Object{$_.MemberType -match "NoteProperty"} | Measure-Object).Count
+$VMDriveDataHeader = "`$A`$1:`$$VMDriveDataColumnCount`$1"
 $VMDriveDataLastRow = ($VMDriveData | Measure-Object).Count + 1
 If($VMDriveDataLastRow -gt 1){
-    $VMDriveDataCapacityColumn = "'VM Drives'!`$C`$2:`$C`$$VMDriveDataLastRow"
-    $VMDriveDataFreeColumn = "'VM Drives'!`$E`$2:`$E`$$VMDriveDataLastRow"
-    $VMDriveDataUsedColumn = "'VM Drives'!`$G`$2:`$G`$$VMDriveDataLastRow"
     $VMDriveDataStyle = @()
-    $VMDriveDataStyle += New-ExcelStyle -Range "'VM Drives'$HeaderRow" -HorizontalAlignment Center
-    $VMDriveDataStyle += New-ExcelStyle -Range $VMDriveDataCapacityColumn -NumberFormat '0'
-    $VMDriveDataStyle += New-ExcelStyle -Range $VMDriveDataFreeColumn -NumberFormat '0'
-    $VMDriveDataStyle += New-ExcelStyle -Range $VMDriveDataUsedColumn -NumberFormat '0'
+    $VMDriveDataStyle += New-ExcelStyle -Range "'VM Drives!'$VMDriveDataHeader" -HorizontalAlignment Center
+    $VMDriveDataStyle += New-ExcelStyle -Range "'VM Drives'!`$C`$2:`$C`$$VMDriveDataLastRow" -NumberFormat '0'
+    $VMDriveDataStyle += New-ExcelStyle -Range "'VM Drives'!`$E`$2:`$E`$$VMDriveDataLastRow" -NumberFormat '0'
+    $VMDriveDataStyle += New-ExcelStyle -Range "'VM Drives'!`$G`$2:`$G`$$VMDriveDataLastRow" -NumberFormat '0'
     $VMDriveData | Sort-Object VM | Export-Excel -Path $LogFile -AutoSize -FreezeTopRow -BoldTopRow -WorkSheetname "VM Drives" -Style $VMDriveDataStyle
 }
 
 # Datastore sheet
+$DatastoresDataColumnCount = Get-ColumnName ($DatastoresData | Get-Member | Where-Object{$_.MemberType -match "NoteProperty"} | Measure-Object).Count
+$DatastoresDataHeader = "`$A`$1:`$$DatastoresDataColumnCount`$1"
 $DatastoreLastRow = ($DatastoresData | Measure-Object).Count + 1
 If($DatastoreLastRow -gt 1){
+    $DatastoresDataStyle = New-ExcelStyle -Range "Datastores!$DatastoresDataHeader" -HorizontalAlignment Center
     $DatastorePctFreeColumn = "Datastores!`$D`$2:`$D`$$DatastoreLastRow"
-    $DatastoresDataStyle = New-ExcelStyle -Range "Datastores$HeaderRow" -HorizontalAlignment Center
-    $DatastoresData | Sort-Object Store | Export-Excel -Path $LogFile -AutoSize -FreezeTopRow -BoldTopRow -WorkSheetname "Datastores" -Style $DatastoresDataStyle -ConditionalFormat $(
-        New-ConditionalText -Range $DatastorePctFreeColumn -ConditionalType GreaterThanOrEqual "90" -ConditionalTextColor Maroon -BackgroundColor Pink
-        New-ConditionalText -Range $DatastorePctFreeColumn -ConditionalType GreaterThanOrEqual "80" -ConditionalTextColor Brown -BackgroundColor Yellow
-    )
+    $DatastoresDataConditionalText = @()
+    $DatastoresDataConditionalText += New-ConditionalText -Range $DatastorePctFreeColumn -ConditionalType LessThanOrEqual "10" -ConditionalTextColor Maroon -BackgroundColor Pink
+    $DatastoresDataConditionalText += New-ConditionalText -Range $DatastorePctFreeColumn -ConditionalType LessThanOrEqual "20" -ConditionalTextColor Brown -BackgroundColor Wheat
+    $DatastoresData | Sort-Object Store | Export-Excel -Path $LogFile -AutoSize -FreezeTopRow -BoldTopRow -WorkSheetname "Datastores" -Style $DatastoresDataStyle -ConditionalFormat $DatastoresDataConditionalText
 }
 #endregion
