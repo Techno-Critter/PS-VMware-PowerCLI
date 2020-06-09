@@ -331,6 +331,15 @@ ForEach($VCServer in $VCServers){
 }
 
 #region Output to Excel
+# Create Excel standard configuration properties
+$ExcelProps = @{
+    Autosize = $true;
+    FreezeTopRow = $true;
+    BoldTopRow = $true;
+}
+
+$ExcelProps.Path = $LogFile
+
 # Cluster sheet
 $ClusterDataLastRow = ($ClusterData | Measure-Object).Count + 1
 If($ClusterDataLastRow -gt 1){
@@ -339,7 +348,7 @@ If($ClusterDataLastRow -gt 1){
 
     $ClusterDataStyle = New-ExcelStyle -Range $ClusterDataHeaderRow -HorizontalAlignment Center
     
-    $ClusterData | Sort-Object "Datacenter","Cluster" | Export-Excel -Path $LogFile -AutoSize -FreezeTopRow -BoldTopRow -WorkSheetname "Clusters" -Style $ClusterDataStyle
+    $ClusterData | Sort-Object "Datacenter","Cluster" | Export-Excel @ExcelProps -WorkSheetname "Clusters" -Style $ClusterDataStyle
 }
 
 # Host sheet
@@ -358,7 +367,7 @@ If($HostDataLastRow -gt 1){
     $HostDataConditionalFormatting += New-ConditionalText -Range $LockdownColumn -ConditionalType ContainsText "lockdownDisabled" -ConditionalTextColor Brown -BackgroundColor Yellow
     $HostDataConditionalFormatting += New-ConditionalText -Range $NTPColumn -ConditionalType NotContainsText "172.16.127.253, 172.16.255.253" -ConditionalTextColor Brown -BackgroundColor Yellow
 
-    $HostData | Sort-Object Name | Export-Excel -Path $LogFile -AutoSize -FreezeTopRow -BoldTopRow -WorkSheetname "Hosts" -Style $HostDataStyle -ConditionalText $HostDataConditionalFormatting
+    $HostData | Sort-Object Name | Export-Excel @ExcelProps -WorkSheetname "Hosts" -Style $HostDataStyle -ConditionalText $HostDataConditionalFormatting
 }
 
 # Host NIC sheet
@@ -369,7 +378,7 @@ If($HostNicDataLastRow -gt 1){
 
     $HostNicDataStyle = New-ExcelStyle -Range $HostNicDataHeaderRow -HorizontalAlignment Center
 
-    $HostNicData | Sort-Object "Host","Name" | Export-Excel -Path $LogFile -AutoSize -FreezeTopRow -BoldTopRow -WorkSheetname "Host NICs" -Style $HostNicDataStyle
+    $HostNicData | Sort-Object "Host","Name" | Export-Excel @ExcelProps -WorkSheetname "Host NICs" -Style $HostNicDataStyle
 }
 
 # VM sheet
@@ -383,7 +392,7 @@ If($VMDataLastRow -gt 1){
     $VMDataStyle += New-ExcelStyle -Range $VMDataHeaderRow -HorizontalAlignment Center
     $VMDataStyle += New-ExcelStyle -Range $VMDataUsedSpaceColumn -NumberFormat '0'
 
-    $VMData | Sort-Object "Name" | Export-Excel -Path $LogFile -AutoSize -FreezeTopRow -BoldTopRow -WorkSheetname "VMs" -Style $VMDataStyle
+    $VMData | Sort-Object "Name" | Export-Excel @ExcelProps -WorkSheetname "VMs" -Style $VMDataStyle
 }
 
 # VM NIC sheet
@@ -394,7 +403,7 @@ If($VMNicDataLastRow -gt 1){
 
     $VMNicDataStyle = New-ExcelStyle -Range $VMNicDataHeaderRow -HorizontalAlignment Center
 
-    $VMNicData | Sort-Object "VM" | Export-Excel -Path $LogFile -AutoSize -FreezeTopRow -BoldTopRow -WorkSheetname "VM NICs" -Style $VMNicDataStyle
+    $VMNicData | Sort-Object "VM" | Export-Excel @ExcelProps -WorkSheetname "VM NICs" -Style $VMNicDataStyle
 }
 
 # VM Disk sheet
@@ -411,7 +420,7 @@ If($VMHDDataLastRow -gt 1){
 
     $VMHDDataConditionalFormatting = New-ConditionalText -Range $VMHDFormatColumn -ConditionalType NotContainsText "Thin" -ConditionalTextColor Maroon -BackgroundColor Pink
 
-    $VMHardDiskData | Sort-Object "VM","Disk" | Export-Excel -Path $LogFile -AutoSize -FreezeTopRow -BoldTopRow -WorkSheetname "VM Disks" -Style $VMHDDataStyle -ConditionalFormat $VMHDDataConditionalFormatting
+    $VMHardDiskData | Sort-Object "VM","Disk" | Export-Excel @ExcelProps -WorkSheetname "VM Disks" -Style $VMHDDataStyle -ConditionalFormat $VMHDDataConditionalFormatting
 }
 
 # VM Drive sheet
@@ -429,7 +438,7 @@ If($VMDriveDataLastRow -gt 1){
     $VMDriveDataStyle += New-ExcelStyle -Range $VMDriveDataFreeColumn -NumberFormat '0'
     $VMDriveDataStyle += New-ExcelStyle -Range $VMDriveDataUsedColumn -NumberFormat '0'
     
-    $VMDriveData | Sort-Object "VM" | Export-Excel -Path $LogFile -AutoSize -FreezeTopRow -BoldTopRow -WorkSheetname "VM Drives" -Style $VMDriveDataStyle
+    $VMDriveData | Sort-Object "VM" | Export-Excel @ExcelProps -WorkSheetname "VM Drives" -Style $VMDriveDataStyle
 }
 
 # Datastore sheet
@@ -447,6 +456,6 @@ If($DatastoreLastRow -gt 1){
     $DatastoresConditionalFormatting += New-ConditionalText -Range $DatastorePctFreeColumn -ConditionalType LessThanOrEqual "20" -ConditionalTextColor Brown -BackgroundColor Yellow
     $DatastoresConditionalFormatting += New-ConditionalText -Range $DatastoreAvailableColumn -ConditionalType NotContainsText "Available" -ConditionalTextColor Maroon -BackgroundColor Pink
     
-    $DatastoresData | Sort-Object "Path","Store" | Export-Excel -Path $LogFile -AutoSize -FreezeTopRow -BoldTopRow -WorkSheetname "Datastores" -Style $DatastoresDataStyle -ConditionalFormat $DatastoresConditionalFormatting
+    $DatastoresData | Sort-Object "Path","Store" | Export-Excel @ExcelProps -WorkSheetname "Datastores" -Style $DatastoresDataStyle -ConditionalFormat $DatastoresConditionalFormatting
 }
 #endregion
