@@ -104,8 +104,8 @@ $SnapshotData = @()
 # Set username and password for vCenter access. NOTE: account must have at least read access!
 $Hostname = $ENV:COMPUTERNAME
 $CurrentUser = $ENV:USERNAME #NOTE: user must have modify access to CredentialFileDirectory location!
-$LoginAccount = "tcrider@admin.ara.com" #NOTE: if login account changes a new credential file will be created!
-$CredentialFileDirectory = "\\ent-fileshare.ara.com\IT\LANManagers\LANMgr Dropbox\Stan Crider\Credentials"
+$LoginAccount = "vcenterer@acme.com" #NOTE: if login account changes a new credential file will be created!
+$CredentialFileDirectory = "\\fileserver.acme.com\Credentials"
 $CredentialFile = "$CredentialFileDirectory\$Hostname\vCenter Creds $CurrentUser.xml"
 If(Test-Path $CredentialFile){
     $Credentials = Import-Clixml $CredentialFile
