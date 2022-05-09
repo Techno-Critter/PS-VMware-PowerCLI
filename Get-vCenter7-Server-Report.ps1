@@ -15,6 +15,8 @@ Gather information from specified vCenter servers and outputs to Excel
 $Date = Get-Date -Format yyyyMMdd
 $LogFile = "C:\Logs\vCenter\vCenter_Report_$Date.xlsx"
 $VCServers = @("vcenter-1.acme.com","vcenter-2.acme.com")
+$LoginAccount = "vcenterer@acme.com" #NOTE: if login account changes a new credential file will be created!
+$CredentialFileDirectory = "\\fileserver.acme.com\Credentials"
 #endregion
 
 #region Function: Change data sizes to legible values; converts number to string
@@ -104,8 +106,6 @@ $SnapshotData = @()
 # Set username and password for vCenter access. NOTE: account must have at least read access!
 $Hostname = $ENV:COMPUTERNAME
 $CurrentUser = $ENV:USERNAME #NOTE: user must have modify access to CredentialFileDirectory location!
-$LoginAccount = "vcenterer@acme.com" #NOTE: if login account changes a new credential file will be created!
-$CredentialFileDirectory = "\\fileserver.acme.com\Credentials"
 $CredentialFile = "$CredentialFileDirectory\$Hostname\vCenter Creds $CurrentUser.xml"
 If(Test-Path $CredentialFile){
     $Credentials = Import-Clixml $CredentialFile
