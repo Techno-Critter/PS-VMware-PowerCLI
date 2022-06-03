@@ -465,14 +465,14 @@ If($HostDataLastRow -gt 1){
     $HostDataHeaderCount = Get-ColumnName ($HostData | Get-Member | Where-Object{$_.MemberType -match "NoteProperty"} | Measure-Object).Count
     $HostDataHeaderRow   = "Hosts!`$A`$1:`$$HostDataHeaderCount`$1"
     $MMColumn            = "Hosts!`$D`$2:`$D`$$HostDataLastRow"
-    #$LockdownColumn      = "Hosts!`$E`$2:`$E`$$HostDataLastRow"
+    $LockdownColumn      = "Hosts!`$E`$2:`$E`$$HostDataLastRow"
     $NTPColumn           = "Hosts!`$N`$2:`$N`$$HostDataLastRow"
 
     $HostDataStyle = New-ExcelStyle -Range $HostDataHeaderRow -HorizontalAlignment Center
 
     $HostDataConditionalFormatting = @()
     $HostDataConditionalFormatting += New-ConditionalText -Range $MMColumn -ConditionalType ContainsText "TRUE" -ConditionalTextColor Brown -BackgroundColor Yellow
-    #$HostDataConditionalFormatting += New-ConditionalText -Range $LockdownColumn -ConditionalType ContainsText "lockdownDisabled" -ConditionalTextColor Brown -BackgroundColor Yellow
+    $HostDataConditionalFormatting += New-ConditionalText -Range $LockdownColumn -ConditionalType ContainsText "lockdownDisabled" -ConditionalTextColor Brown -BackgroundColor Yellow
     $HostDataConditionalFormatting += New-ConditionalText -Range $NTPColumn -ConditionalType NotContainsText "ent-time-1.ara.com" -ConditionalTextColor Brown -BackgroundColor Yellow
     $HostDataConditionalFormatting += New-ConditionalText -Range $NTPColumn -ConditionalType ContainsBlanks -BackgroundColor Yellow
 
