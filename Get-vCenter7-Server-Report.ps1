@@ -325,6 +325,7 @@ ForEach($VCServer in $VCServers){
                 "UsedSpace Raw" = $VMachine.UsedSpaceGB*1GB
                 "UsedSpace"     = Get-Size ($VMachine.UsedSpaceGB*1GB)
                 "Snapshots"     = ($VSnapshots | Measure-Object).Count
+                "Consolidate"   = $VMachine.ExtensionData.Runtime.ConsolidationNeeded
                 "Folder"        = $VMProps.Folder.Name
                 "Host"          = (Get-VMHost -VM $VMachine.Name).Name
                 "Cluster"       = (Get-Cluster -VM $VMachine.Name).Name
@@ -497,6 +498,7 @@ If($VMDataLastRow -gt 1){
     $VMDataHeaderRow          = "'VMs'!`$A`$1:`$$VMDataHeaderCount`$1"
     $VMDataUsedSpaceRawColumn = "'VMs'!`$O`$2:`$O`$$VMDataLastRow"
     $VMSnapshotColumn         = "'VMs'!`$Q`$2:`$Q`$$VMDataLastRow"
+    $VMConsolidationColumn    = "'VMs'!`$R`$2:`$R`$$VMDataLastRow"
 
     $VMDataStyle = @()
     $VMDataStyle += New-ExcelStyle -Range $VMDataHeaderRow -HorizontalAlignment Center
@@ -505,6 +507,7 @@ If($VMDataLastRow -gt 1){
 
     $VMDataConditionalFormatting = @()
     $VMDataConditionalFormatting += New-ConditionalText -Range $VMSnapshotColumn -ConditionalType GreaterThanOrEqual "1" -ConditionalTextColor Brown -BackgroundColor Yellow
+    $VMDataConditionalFormatting += New-ConditionalText -Range $VMConsolidationColumn -ConditionalType ContainsText "TRUE" -ConditionalTextColor Brown -BackgroundColor Yellow
 
     $VMData | Sort-Object "Name" | Export-Excel @ExcelProps -WorkSheetname "VMs" -Style $VMDataStyle -ConditionalFormat $VMDataConditionalFormatting
 }
