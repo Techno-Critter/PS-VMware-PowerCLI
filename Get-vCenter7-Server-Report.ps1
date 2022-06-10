@@ -563,9 +563,11 @@ $SnapshotLastRow = ($SnapshotData | Measure-Object).Count + 1
 If($SnapshotLastRow -gt 1){
     $SnapshotHeaderCount = Get-ColumnName ($SnapshotData | Get-Member | Where-Object{$_.MemberType -match "NoteProperty"} | Measure-Object).Count
     $SnapshotHeaderRow   = "Snapshots!`$A`$1:`$$SnapshotHeaderCount`$1"
+    $SnapshotRawsizeColumn = "'Snapshots'!`$D`$2:`$D`$$SnapshotLastRow"
 
     $SnapshotDataStyle = @()
     $SnapshotDataStyle += New-ExcelStyle -Range $SnapshotHeaderRow -HorizontalAlignment Center
+    $SnapshotDataStyle += New-ExcelStyle -Range $SnapshotRawsizeColumn -NumberFormat '0'
 
     $SnapshotData | Export-Excel @ExcelProps -WorksheetName "Snapshots" -Style $SnapshotDataStyle
 }
