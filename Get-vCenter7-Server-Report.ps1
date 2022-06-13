@@ -100,6 +100,8 @@ $VMDriveData = @()
 $VMHardDiskData = @()
 $DatastoresData = @()
 $SnapshotData = @()
+$VCLicenseServers = @()
+$LicenseCustomObject = @()
 #endregion
 
 #region Credentials
@@ -163,6 +165,55 @@ ForEach($VCServer in $VCServers){
                 "AutoLevel"  = $VCluster.DrsAutomationLevel
                 "Hosts"      = (Get-VMHost -Location $VCluster.Name | Measure-Object).Count
                 "VMs"        = (Get-VM -Location $VCluster.Name | Measure-Object).Count
+            }
+        }
+    }
+#endregion
+
+#region Licensing
+    $VCLicenseServers = Get-View LicenseManager
+    # Enumerate license servers
+    ForEach($VCLicenseServer in $VCLicenseServers){
+        $LicenseCustomObjects = $VCLicenseServer.Licenses
+
+        ForEach($LicenseObj in $LicenseCustomObjects){
+            $LicenseProperties = $LicenseObj.Properties
+
+            # License product and version handling
+            $LicenseProduct = $LicenseProperties | Where-Object {$_.Key -eq 'ProductName'} | Select-Object -ExpandProperty Value
+            $LicenseVersion = $LicenseProperties | Where-Object {$_.Key -eq 'ProductVersion'} | Select-Object -ExpandProperty Value
+
+            # License expiration handling
+            $LicenseExpiration = "Never"
+            $LicenseExpiresValues = $LicenseProperties | Where-Object {$_.Key -eq 'ExpirationDate'} | Select-Object -ExpandProperty Value
+            If($LicenseObj.Name -eq "Product Evaluation"){
+                $LicenseExpiration = "Evaluation"
+            }
+            ElseIf($LicenseExpiresValues){
+                $LicenseExpiration = $LicenseExpiresValues
+            }
+
+            # License count handling
+            If($LicenseObj.Total -eq 0){
+                $LicenseCount = "Unlimited"
+            }
+            Else{
+                $LicenseCount = $LicenseObj.Total
+            }
+
+            $LicenseCustomObject += [PSCustomObject]@{
+                "vCenter Server" = $VCServer
+                "License Host"   = ([System.uri]$VCLicenseServer.Client.ServiceUrl).Host
+                "Name"           = $LicenseObj.Name
+                "Product"        = $LicenseProduct
+                "Version"        = $LicenseVersion
+                "Edition Key"    = $LicenseObj.EditionKey
+                "License Key"    = $LicenseObj.LicenseKey
+                "Total"          = $LicenseCount
+                "In Use"         = $LicenseObj.Used
+                "Units"          = $LicenseObj.CostUnit
+                "Expires"        = $LicenseExpiration
+                "Labels"         = $LicenseObj.Labels
             }
         }
     }
@@ -458,6 +509,18 @@ If($ClusterDataLastRow -gt 1){
     $ClusterDataStyle = New-ExcelStyle -Range $ClusterDataHeaderRow -HorizontalAlignment Center
 
     $ClusterData | Sort-Object "vCenter","Datacenter","Cluster" | Export-Excel @ExcelProps -WorkSheetname "Clusters" -Style $ClusterDataStyle
+}
+
+# Licensing sheet
+$LicensingLastRow = ($LicenseCustomObject | Measure-Object).Count + 1
+If($LicensingLastRow -gt 1){
+    $LicensingHeaderCount = Get-ColumnName ($LicenseCustomObject | Get-Member | Where-Object{$_.MemberType -match "NoteProperty"} | Measure-Object).Count
+    $LicensingHeaderRow = "Licenses!`$A`$1:`$$LicensingHeaderCount`$1"
+
+    $LicensingDataStyle = @()
+    $LicensingDataStyle += New-ExcelStyle -Range $LicensingHeaderRow -HorizontalAlignment Center
+
+    $LicenseCustomObject | Sort-Object "License Host","Product" | Export-Excel @ExcelProps -WorksheetName "Licenses" -Style $LicensingDataStyle
 }
 
 # Host sheet
