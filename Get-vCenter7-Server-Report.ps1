@@ -425,19 +425,18 @@ ForEach($VCServer in $VCServers){
 
                 #region VM Hard Disk
                 ForEach($VMHardDisk in $VMHardDiskProps){
-                    $VMDKRawUsedSize = $null
                     $VMDKUsedSize = $null
                     Try{
                         $VMDKRawUsedSize = ($VMachine.ExtensionData.LayoutEx.file | Where-Object{$_.Name -contains $VMHardDisk.FileName.replace(".vmdk","-flat.vmdk")} -ErrorAction Stop).Size
                     }
                     Catch{
-                        $VMDKRawUsedSize = "N/A"
+                        $VMDKRawUsedSize = $null
                     }
-                    If($VMDKRawUsedSize -eq "N/A"){
-                        $VMDKUsedSize = "N/A"
+                    If($VMDKRawUsedSize){
+                        $VMDKUsedSize = Get-Size $VMDKRawUsedSize
                     }
                     Else{
-                        $VMDKUsedSize = Get-Size $VMDKRawUsedSize
+                        $VMDKUsedSize = "N/A"
                     }
 
                     $VMHardDiskData += [PSCustomObject]@{
