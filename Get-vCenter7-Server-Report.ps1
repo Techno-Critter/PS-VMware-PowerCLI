@@ -425,11 +425,28 @@ ForEach($VCServer in $VCServers){
 
                 #region VM Hard Disk
                 ForEach($VMHardDisk in $VMHardDiskProps){
+                    $VMDKRawUsedSize = $null
+                    $VMDKUsedSize = $null
+                    Try{
+                        $VMDKRawUsedSize = ($VMachine.ExtensionData.LayoutEx.file | Where-Object{$_.Name -contains $VMHardDisk.FileName.replace(".vmdk","-flat.vmdk")} -ErrorAction Stop).Size
+                    }
+                    Catch{
+                        $VMDKRawUsedSize = "N/A"
+                    }
+                    If($VMDKRawUsedSize -eq "N/A"){
+                        $VMDKUsedSize = "N/A"
+                    }
+                    Else{
+                        $VMDKUsedSize = Get-Size $VMDKRawUsedSize
+                    }
+
                     $VMHardDiskData += [PSCustomObject]@{
                         "VM"           = $VMachine.Name
                         "Disk"         = $VMHardDisk.Name
                         "Raw Capacity" = $VMHardDisk.CapacityGB*1GB
                         "Capacity"     = Get-Size ($VMHardDisk.CapacityGB*1GB)
+                        "Raw Used"     = $VMDKRawUsedSize
+                        "Used"         = $VMDKUsedSize
                         "Persistence"  = $VMHardDisk.Persistence
                         "Format"       = $VMHardDisk.StorageFormat
                         "Type"         = $VMHardDisk.DiskType
@@ -602,11 +619,13 @@ If($VMHDDataLastRow -gt 1){
     $VMHDDataHeaderCount    = Get-ColumnName ($VMHardDiskData | Get-Member | Where-Object{$_.MemberType -match "NoteProperty"} | Measure-Object).Count
     $VMHDDataHeaderRow      = "'VM Disks'!`$A`$1:`$$VMHDDataHeaderCount`$1"
     $VMHDDataCapacityColumn = "'VM Disks'!`$C`$2:`$C`$$VMHDDataLastRow"
-    $VMHDFormatColumn       = "'VM Disks'!`$F`$2:`$F`$$VMHDDataLastRow"
+    $VMHDDataUsedColumn     = "'VM Disks'!`$E`$2:`$E`$$VMHDDataLastRow"
+    $VMHDFormatColumn       = "'VM Disks'!`$H`$2:`$H`$$VMHDDataLastRow"
 
     $VMHDDataStyle = @()
     $VMHDDataStyle += New-ExcelStyle -Range $VMHDDataHeaderRow -HorizontalAlignment Center
     $VMHDDataStyle += New-ExcelStyle -Range $VMHDDataCapacityColumn -NumberFormat '0'
+    $VMHDDataStyle += New-ExcelStyle -Range $VMHDDataUsedColumn -NumberFormat '0'
 
     $VMHDDataConditionalFormatting = New-ConditionalText -Range $VMHDFormatColumn -ConditionalType NotContainsText "Thin" -ConditionalTextColor Maroon -BackgroundColor Pink
 
