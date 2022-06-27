@@ -94,6 +94,7 @@ $DatacenterData = @()
 $ClusterData = @()
 $HostData = @()
 $HostNicData = @()
+$HostVMKData = @()
 $VMData = @()
 $VMNicData = @()
 $VMDriveData = @()
@@ -262,6 +263,15 @@ ForEach($VCServer in $VCServers){
                     $HostSerialNumber = $HostObjView.Hardware.SystemInfo.OtherIdentifyingInfo[1].IdentifierValue
                 }
 
+                $ESXCli = Get-EsxCli -VMHost $VMHost
+                $NetworkSystem = $HostObjView.ConfigManager.NetworkSystem
+                $NetworkSystemView = Get-View $NetworkSystem
+                $DVSwitchInfo = Get-VDSwitch -VMHost $VMHost
+                If($null -ne $DVSwitchInfo){
+                    $DVSwitchHost = $DVSwitchInfo.ExtensionData.Config.Host
+                    $DVNIC = $DVSwitchHost.Config.Backing.PCINICPropspec.PnicDevice
+                }
+
                 If($ErrorCount -eq 0){
                     $HostData += [PSCustomObject]@{
                         "Name"             = $VMHost.Name
@@ -291,32 +301,73 @@ ForEach($VCServer in $VCServers){
                 #endregion
 
                 #region Host NICs
-                Try{
-                    $HostNICs = Get-VMHostNetworkAdapter -VMHost $VMHost.Name -VMKernel -ErrorAction Stop | Select-Object Name,DeviceName,Mac,IP,DhcpEnabled,SubnetMask,MTU,PortGroupName,VMotionEnabled
-                }
-                Catch{
-                    $HostNICs = $null
-                }
-
-                ForEach($HostNic in $HostNICs){
-                    $HostNicData += [PSCustomObject]@{
-                        "Host"        = $VMHost.Name
-                        "Name"        = $HostNic.Name
-                        "Device"      = $HostNic.DeviceName
-                        "IP"          = $HostNic.IP
-                        "Subnet Mask" = $HostNic.SubnetMask
-                        "MAC"         = $HostNic.MAC
-                        "DHCP"        = $HostNic.DhcpEnabled
-                        "MTU"         = $HostNic.Mtu
-                        "Port Group"  = $HostNic.PortGroupName
-                        "vMotion"     = $HostNic.VMotionEnabled
-                        "Cluster"     = ($VMHost | Get-Cluster).Name
-                        "Datacenter"  = ($VMHost | Get-Datacenter).Name
+                    Try{
+                        $HostNICs = Get-VMHostNetworkAdapter -VMHost $VMHost.Name -Physical -ErrorAction Stop | Select-Object Name,Mac,DhcpEnabled
                     }
+                    Catch{
+                        $HostNICs = $null
+                    }
+
+                    ForEach($HostNic in $HostNICs){
+                        $NetworkHint = $NetworkSystemView.QueryNetworkHint($HostNic.Name)
+                        $PCINIC = $ESXCli.Network.NIC.List()
+                        $PCINICProps = $PCINIC | Where-Object{$HostNic.Name -eq $_.Name} | Select-Object "Description","Link","Duplex","MTU","Driver","Speed"
+                        $CDPExtended = $NetworkHint.ConnectedSwitchPort
+                        If($HostNic.Name -eq $DVNIC){
+                            $vSwitch = $DVSwitchInfo | Where-Object{$HostNic.Name -eq $DVNIC} | Select-Object -ExpandProperty "Name"
+                        }
+                        Else{
+                            $vSwitchName = $VMHost | Get-VirtualSwitch | Where-Object{$_.NIC -eq $HostNic.DeviceName}
+                            $vSwitch = $vSwitchName.Name
+                        }
+
+                        $HostNicData += [PSCustomObject]@{
+                            "Host"       = $VMHost.Name
+                            "Name"       = $HostNic.Name
+                            "Switch"     = $vSwitch
+                            "Device ID"  = $CDPExtended.devID
+                            "Switch IP"  = $CDPExtended.Address
+                            "Link"       = $PCINICProps.Link
+                            "Speed"      = $PCINICProps.Speed
+                            "Duplex"     = $PCINICProps.Duplex
+                            "MAC"        = $HostNic.MAC
+                            "Port"       = $CDPExtended.PortID
+                            "DHCP"       = $HostNic.DhcpEnabled
+                            "Vendor"     = $PCINICProps.Description
+                            "Driver"     = $PCINICProps.Driver
+                            "Cluster"    = ($VMHost | Get-Cluster).Name
+                            "Datacenter" = ($VMHost | Get-Datacenter).Name
+                        }
+                    }
+                    #endregion
+
+                    #region VMKernel Adapters
+                    Try{
+                        $HostVMKs = Get-VMHostNetworkAdapter -VMHost $VMHost.Name -VMKernel -ErrorAction Stop | Select-Object Name,DeviceName,Mac,IP,DhcpEnabled,SubnetMask,MTU,PortGroupName,VMotionEnabled
+                    }
+                    Catch{
+                        $HostVMKs = $null
+                    }
+
+                    ForEach($HostVMK in $HostVMKs){
+                        $HostVMKData += [PSCustomObject]@{
+                            "Host"        = $VMHost.Name
+                            "Name"        = $HostVMK.Name
+                            "Device"      = $HostVMK.DeviceName
+                            "IP"          = $HostVMK.IP
+                            "Subnet Mask" = $HostVMK.SubnetMask
+                            "MAC"         = $HostVMK.MAC
+                            "DHCP"        = $HostVMK.DhcpEnabled
+                            "MTU"         = $HostVMK.Mtu
+                            "Port Group"  = $HostVMK.PortGroupName
+                            "vMotion"     = $HostVMK.VMotionEnabled
+                            "Cluster"     = ($VMHost | Get-Cluster).Name
+                            "Datacenter"  = ($VMHost | Get-Datacenter).Name
+                        }
+                    }
+                    #endregion
                 }
             }
-        }
-        #endregion
 
         #region VMs
         Try{
@@ -578,6 +629,17 @@ If($HostNicDataLastRow -gt 1){
     $HostNicDataStyle = New-ExcelStyle -Range $HostNicDataHeaderRow -HorizontalAlignment Center
 
     $HostNicData | Sort-Object "Host","Name" | Export-Excel @ExcelProps -WorkSheetname "Host NICs" -Style $HostNicDataStyle
+}
+
+# Host VMK sheet
+$HostVMKDataLastRow = ($HostVMKData | Measure-Object).Count + 1
+If($HostVMKDataLastRow -gt 1){
+    $HostVMKDataHeaderCount = Get-ColumnName ($HostVMKData | Get-Member | Where-Object{$_.MemberType -match "NoteProperty"} | Measure-Object).Count
+    $HostVMKDataHeaderRow   = "'Host VMKs'!`$A`$1:`$$HostVMKDataHeaderCount`$1"
+
+    $HostVMKDataStyle = New-ExcelStyle -Range $HostVMKDataHeaderRow -HorizontalAlignment Center
+
+    $HostVMKData | Sort-Object "vCenter Server","Datacenter","Cluster","Host","Name" | Export-Excel @ExcelProps -WorksheetName "Host VMKs" -Style $HostVMKDataStyle
 }
 
 # VM sheet
