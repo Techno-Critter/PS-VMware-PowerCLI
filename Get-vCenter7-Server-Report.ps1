@@ -263,7 +263,18 @@ ForEach($VCServer in $VCServers){
                     $HostSerialNumber = $HostObjView.Hardware.SystemInfo.OtherIdentifyingInfo[1].IdentifierValue
                 }
 
-                $ESXCli = Get-EsxCli -VMHost $VMHost
+                Try{
+                    $ESXCli = Get-EsxCli -VMHost $VMHost.Name -V2 -ErrorAction Stop
+                }
+                Catch{
+                    $ESXCli = $null
+                }
+                If($ESXCli){
+                    $PCINIC = $ESXCli.Network.NIC.List.Invoke()
+                }
+                Else{
+                    $PCINIC = $null
+                }
                 $NetworkSystem = $HostObjView.ConfigManager.NetworkSystem
                 $NetworkSystemView = Get-View $NetworkSystem
                 $DVSwitchInfo = Get-VDSwitch -VMHost $VMHost
@@ -309,9 +320,19 @@ ForEach($VCServer in $VCServers){
                     }
 
                     ForEach($HostNic in $HostNICs){
+                        $NetworkHint = $null
+                        $CDPExtended = $null
+                        $vSwitch = $null
+                        $vSwitchName = $null
+
+                        If($PCINIC){
+                            $PCINICProps = $PCINIC | Where-Object{$HostNic.Name -eq $_.Name} | Select-Object "Description","Link","Duplex","MTU","Driver","Speed"
+                        }
+                        Else{
+                            $PCINICProps = $null
+                        }
+
                         $NetworkHint = $NetworkSystemView.QueryNetworkHint($HostNic.Name)
-                        $PCINIC = $ESXCli.Network.NIC.List()
-                        $PCINICProps = $PCINIC | Where-Object{$HostNic.Name -eq $_.Name} | Select-Object "Description","Link","Duplex","MTU","Driver","Speed"
                         $CDPExtended = $NetworkHint.ConnectedSwitchPort
                         If($HostNic.Name -eq $DVNIC){
                             $vSwitch = $DVSwitchInfo | Where-Object{$HostNic.Name -eq $DVNIC} | Select-Object -ExpandProperty "Name"
@@ -322,21 +343,21 @@ ForEach($VCServer in $VCServers){
                         }
 
                         $HostNicData += [PSCustomObject]@{
-                            "Host"       = $VMHost.Name
-                            "Name"       = $HostNic.Name
-                            "Switch"     = $vSwitch
-                            "Device ID"  = $CDPExtended.devID
-                            "Switch IP"  = $CDPExtended.Address
-                            "Link"       = $PCINICProps.Link
-                            "Speed"      = $PCINICProps.Speed
-                            "Duplex"     = $PCINICProps.Duplex
-                            "MAC"        = $HostNic.MAC
-                            "Port"       = $CDPExtended.PortID
-                            "DHCP"       = $HostNic.DhcpEnabled
-                            "Vendor"     = $PCINICProps.Description
-                            "Driver"     = $PCINICProps.Driver
-                            "Cluster"    = ($VMHost | Get-Cluster).Name
-                            "Datacenter" = ($VMHost | Get-Datacenter).Name
+                            "Host"        = $VMHost.Name
+                            "Name"        = $HostNic.Name
+                            "MAC"         = $HostNic.MAC
+                            "DHCP"        = $HostNic.DhcpEnabled
+                            "Link"        = $PCINICProps.Link
+                            "Speed"       = $PCINICProps.Speed
+                            "Duplex"      = $PCINICProps.Duplex
+                            "Vendor"      = $PCINICProps.Description
+                            "Driver"      = $PCINICProps.Driver
+                            "vSwitch"     = $vSwitch
+                            "Switch"      = $CDPExtended.DevID
+                            "Switch IP"   = $CDPExtended.Address
+                            "Switch Port" = $CDPExtended.PortID
+                            "Cluster"     = ($VMHost | Get-Cluster).Name
+                            "Datacenter"  = ($VMHost | Get-Datacenter).Name
                         }
                     }
                     #endregion
@@ -614,7 +635,6 @@ If($HostDataLastRow -gt 1){
     $HostDataConditionalFormatting = @()
     $HostDataConditionalFormatting += New-ConditionalText -Range $MMColumn -ConditionalType ContainsText "TRUE" -ConditionalTextColor Brown -BackgroundColor Yellow
     $HostDataConditionalFormatting += New-ConditionalText -Range $LockdownColumn -ConditionalType ContainsText "lockdownDisabled" -ConditionalTextColor Brown -BackgroundColor Yellow
-    $HostDataConditionalFormatting += New-ConditionalText -Range $NTPColumn -ConditionalType NotContainsText "ent-time-1.ara.com" -ConditionalTextColor Brown -BackgroundColor Yellow
     $HostDataConditionalFormatting += New-ConditionalText -Range $NTPColumn -ConditionalType ContainsBlanks -BackgroundColor Yellow
 
     $HostData | Sort-Object "vCenter Server","Datacenter","Cluster","Name" | Export-Excel @ExcelProps -WorkSheetname "Hosts" -Style $HostDataStyle -ConditionalText $HostDataConditionalFormatting
