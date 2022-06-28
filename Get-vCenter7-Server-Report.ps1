@@ -750,11 +750,15 @@ $DatastoreLastRow = ($DatastoresData | Measure-Object).Count + 1
 If($DatastoreLastRow -gt 1){
     $DatastoresDataHeaderCount = Get-ColumnName ($DatastoresData | Get-Member | Where-Object{$_.MemberType -match "NoteProperty"} | Measure-Object).Count
     $DatastoresDataHeaderRow   = "Datastores!`$A`$1:`$$DatastoresDataHeaderCount`$1"
+    $DatastoresDataCapacityRow = "Datastores!`$B`$2:`$B`$$DatastoreLastRow"
+    $DatastoresDataFreeRow     = "Datastores!`$C`$2:`$C`$$DatastoreLastRow"
     $DatastorePctFreeColumn    = "Datastores!`$D`$2:`$D`$$DatastoreLastRow"
     $DatastoreAvailableColumn  = "Datasotres!`$H`$2:`$H`$$DatastoreLastRow"
 
     $DatastoresDataStyle = @()
     $DatastoresDataStyle += New-ExcelStyle -Range $DatastoresDataHeaderRow -HorizontalAlignment Center
+    $DatastoresDataStyle += New-ExcelStyle -Range $DatastoresDataCapacityRow -NumberFormat '0.00'
+    $DatastoresDataStyle += New-ExcelStyle -Range $DatastoresDataFreeRow -NumberFormat '0.00'
     $DatastoresDataStyle += New-ExcelStyle -Range $DatastorePctFreeColumn -NumberFormat '0.00'
 
     $DatastoresConditionalFormatting = @()
