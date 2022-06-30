@@ -334,11 +334,12 @@ ForEach($VCServer in $VCServers){
 
                         $NetworkHint = $NetworkSystemView.QueryNetworkHint($HostNic.Name)
                         $CDPExtended = $NetworkHint.ConnectedSwitchPort
+                        # Check if NIC is connected to distributed switch or standard switch
                         If($HostNic.Name -eq $DVNIC){
                             $vSwitch = $DVSwitchInfo | Where-Object{$HostNic.Name -eq $DVNIC} | Select-Object -ExpandProperty "Name"
                         }
                         Else{
-                            $vSwitchName = $VMHost | Get-VirtualSwitch | Where-Object{$_.NIC -eq $HostNic.DeviceName}
+                            $vSwitchName = $VMHost | Get-VirtualSwitch -Standard | Where-Object{$_.NIC -eq $HostNic.DeviceName}
                             $vSwitch = $vSwitchName.Name
                         }
 
