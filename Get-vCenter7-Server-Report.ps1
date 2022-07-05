@@ -240,6 +240,7 @@ ForEach($VCServer in $VCServers){
         If($null -ne $VMHosts){
             ForEach($VMHost in $VMHosts){
                 $ErrorCount = 0
+                
                 Try{
                     $HostObjView = $VMHost | Get-View -ErrorAction Stop
                 }
@@ -268,8 +269,8 @@ ForEach($VCServer in $VCServers){
                 }
                 Catch{
                     $ESXCli = $null
-                    $ErrorCount ++
                 }
+                
                 If($ESXCli){
                     $PCINIC = $ESXCli.Network.NIC.List.Invoke()
                 }
@@ -279,10 +280,11 @@ ForEach($VCServer in $VCServers){
                 
                 $NetworkSystem = $HostObjView.ConfigManager.NetworkSystem
                 $NetworkSystemView = Get-View $NetworkSystem
-                $DVSwitchInfo = Get-VDSwitch -VMHost $VMHost
-                If($null -ne $DVSwitchInfo){
-                    $DVSwitchHost = $DVSwitchInfo.ExtensionData.Config.Host
-                    $DVNIC = $DVSwitchHost.Config.Backing.Pnicspec.PnicDevice
+                Try{
+                    $HostDistributedVirtualSwitches = Get-VDSwitch -VMHost $VMHost.Name -ErrorAction Stop
+                }
+                Catch{
+                    $HostDistributedVirtualSwitches = $null
                 }
 
                 If($ErrorCount -eq 0){
@@ -324,6 +326,7 @@ ForEach($VCServer in $VCServers){
                     ForEach($HostNic in $HostNICs){
                         $NetworkHint = $null
                         $CDPExtended = $null
+                        $DVSMatch = $null
                         $vSwitch = $null
 
                         If($PCINIC){
@@ -336,8 +339,13 @@ ForEach($VCServer in $VCServers){
                         $NetworkHint = $NetworkSystemView.QueryNetworkHint($HostNic.Name)
                         $CDPExtended = $NetworkHint.ConnectedSwitchPort
                         # Check if NIC is connected to distributed switch or standard switch
-                        If($DVNIC -contains $HostNic.Name){
-                            $vSwitch = $DVSwitchInfo | Where-Object{$DVNIC -contains $HostNic.Name}
+                        If($HostDistributedVirtualSwitches){
+                            ForEach($HostDVS in $HostDistributedVirtualSwitches){
+                                $DVSMatch = Get-VMHostNetworkAdapter -DistributedSwitch $HostDVS -VMHost $VMHost -Physical | Where-Object{$_.Name -eq $HostNic.Name}
+                                If($DVSMatch){
+                                    $vSwitch = $HostDVS
+                                }
+                            }
                         }
                         Else{
                             $vSwitch = $VMHost | Get-VirtualSwitch -Standard | Where-Object{$_.NIC -eq $HostNic.DeviceName}
