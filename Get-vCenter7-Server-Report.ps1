@@ -268,6 +268,7 @@ ForEach($VCServer in $VCServers){
                 }
                 Catch{
                     $ESXCli = $null
+                    $ErrorCount ++
                 }
                 If($ESXCli){
                     $PCINIC = $ESXCli.Network.NIC.List.Invoke()
@@ -275,12 +276,13 @@ ForEach($VCServer in $VCServers){
                 Else{
                     $PCINIC = $null
                 }
+                
                 $NetworkSystem = $HostObjView.ConfigManager.NetworkSystem
                 $NetworkSystemView = Get-View $NetworkSystem
                 $DVSwitchInfo = Get-VDSwitch -VMHost $VMHost
                 If($null -ne $DVSwitchInfo){
                     $DVSwitchHost = $DVSwitchInfo.ExtensionData.Config.Host
-                    $DVNIC = $DVSwitchHost.Config.Backing.PCINICPropspec.PnicDevice
+                    $DVNIC = $DVSwitchHost.Config.Backing.Pnicspec.PnicDevice
                 }
 
                 If($ErrorCount -eq 0){
@@ -323,7 +325,6 @@ ForEach($VCServer in $VCServers){
                         $NetworkHint = $null
                         $CDPExtended = $null
                         $vSwitch = $null
-                        $vSwitchName = $null
 
                         If($PCINIC){
                             $PCINICProps = $PCINIC | Where-Object{$HostNic.Name -eq $_.Name} | Select-Object "Description","Link","Duplex","MTU","Driver","Speed"
@@ -335,12 +336,11 @@ ForEach($VCServer in $VCServers){
                         $NetworkHint = $NetworkSystemView.QueryNetworkHint($HostNic.Name)
                         $CDPExtended = $NetworkHint.ConnectedSwitchPort
                         # Check if NIC is connected to distributed switch or standard switch
-                        If($HostNic.Name -eq $DVNIC){
-                            $vSwitch = $DVSwitchInfo | Where-Object{$HostNic.Name -eq $DVNIC} | Select-Object -ExpandProperty "Name"
+                        If($DVNIC -contains $HostNic.Name){
+                            $vSwitch = $DVSwitchInfo | Where-Object{$DVNIC -contains $HostNic.Name}
                         }
                         Else{
-                            $vSwitchName = $VMHost | Get-VirtualSwitch -Standard | Where-Object{$_.NIC -eq $HostNic.DeviceName}
-                            $vSwitch = $vSwitchName.Name
+                            $vSwitch = $VMHost | Get-VirtualSwitch -Standard | Where-Object{$_.NIC -eq $HostNic.DeviceName}
                         }
 
                         $HostNicData += [PSCustomObject]@{
@@ -353,7 +353,7 @@ ForEach($VCServer in $VCServers){
                             "Duplex"      = $PCINICProps.Duplex
                             "Vendor"      = $PCINICProps.Description
                             "Driver"      = $PCINICProps.Driver
-                            "vSwitch"     = $vSwitch
+                            "vSwitch"     = $vSwitch.Name
                             "Switch"      = $CDPExtended.DevID
                             "Switch IP"   = $CDPExtended.Address
                             "Switch Port" = $CDPExtended.PortID
