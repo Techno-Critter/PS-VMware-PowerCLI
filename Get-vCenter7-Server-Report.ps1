@@ -317,7 +317,7 @@ ForEach($VCServer in $VCServers){
 
                 #region Host NICs
                     Try{
-                        $HostNICs = Get-VMHostNetworkAdapter -VMHost $VMHost.Name -Physical -ErrorAction Stop | Select-Object Name,Mac,DhcpEnabled
+                        $HostNICs = Get-VMHostNetworkAdapter -VMHost $VMHost.Name -Physical -ErrorAction Stop
                     }
                     Catch{
                         $HostNICs = $null
@@ -330,7 +330,7 @@ ForEach($VCServer in $VCServers){
                         $vSwitchType = $null
 
                         If($PCINIC){
-                            $PCINICProps = $PCINIC | Where-Object{$HostNic.Name -eq $_.Name} | Select-Object "Description","Link","Duplex","MTU","Driver","Speed"
+                            $PCINICProps = $PCINIC | Where-Object{$HostNic.Name -eq $_.Name}
                         }
                         Else{
                             $PCINICProps = $null
@@ -344,8 +344,10 @@ ForEach($VCServer in $VCServers){
                             ForEach($HostDVS in $HostDistributedVirtualSwitches){
                                 $DVSMatch = $null
                                 $DVSMatch = Get-VMHostNetworkAdapter -DistributedSwitch $HostDVS -VMHost $VMHost -Physical | Where-Object{$_.Name -eq $HostNic.Name}
+                                
                                 If($DVSMatch){
                                     $vSwitch = $HostDVS
+                                    Break
                                 }
                             }
                         }
@@ -357,21 +359,22 @@ ForEach($VCServer in $VCServers){
                         }
 
                         $HostNicData += [PSCustomObject]@{
-                            "Host"        = $VMHost.Name
-                            "Name"        = $HostNic.Name
-                            "MAC"         = $HostNic.MAC
-                            "DHCP"        = $HostNic.DhcpEnabled
-                            "Link"        = $PCINICProps.Link
-                            "Speed"       = $PCINICProps.Speed
-                            "Duplex"      = $PCINICProps.Duplex
-                            "Vendor"      = $PCINICProps.Description
-                            "Driver"      = $PCINICProps.Driver
-                            "vSwitch"     = $vSwitch.Name
-                            "Switch"      = $CDPExtended.DevID
-                            "Switch IP"   = $CDPExtended.Address
-                            "Switch Port" = $CDPExtended.PortID
-                            "Cluster"     = ($VMHost | Get-Cluster).Name
-                            "Datacenter"  = ($VMHost | Get-Datacenter).Name
+                            "Host"         = $VMHost.Name
+                            "Name"         = $HostNic.Name
+                            "MAC"          = $HostNic.MAC
+                            "DHCP"         = $HostNic.DhcpEnabled
+                            "Link"         = $PCINICProps.Link
+                            "Speed"        = $PCINICProps.Speed
+                            "Duplex"       = $PCINICProps.Duplex
+                            "Vendor"       = $PCINICProps.Description
+                            "Driver"       = $PCINICProps.Driver
+                            "vSwitch"      = $vSwitch.Name
+                            "vSwitch Type" = $vSwitchType
+                            "Switch"       = $CDPExtended.DevID
+                            "Switch IP"    = $CDPExtended.Address
+                            "Switch Port"  = $CDPExtended.PortID
+                            "Cluster"      = ($VMHost | Get-Cluster).Name
+                            "Datacenter"   = ($VMHost | Get-Datacenter).Name
                         }
                     }
                     #endregion
