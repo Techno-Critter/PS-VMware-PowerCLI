@@ -326,8 +326,8 @@ ForEach($VCServer in $VCServers){
                     ForEach($HostNic in $HostNICs){
                         $NetworkHint = $null
                         $CDPExtended = $null
-                        $DVSMatch = $null
                         $vSwitch = $null
+                        $vSwitchType = $null
 
                         If($PCINIC){
                             $PCINICProps = $PCINIC | Where-Object{$HostNic.Name -eq $_.Name} | Select-Object "Description","Link","Duplex","MTU","Driver","Speed"
@@ -338,16 +338,21 @@ ForEach($VCServer in $VCServers){
 
                         $NetworkHint = $NetworkSystemView.QueryNetworkHint($HostNic.Name)
                         $CDPExtended = $NetworkHint.ConnectedSwitchPort
-                        # Check if NIC is connected to distributed switch or standard switch
+                        # Check if NIC is connected to distributed switch
                         If($HostDistributedVirtualSwitches){
+                            $vSwitchType = "Distributed"
                             ForEach($HostDVS in $HostDistributedVirtualSwitches){
+                                $DVSMatch = $null
                                 $DVSMatch = Get-VMHostNetworkAdapter -DistributedSwitch $HostDVS -VMHost $VMHost -Physical | Where-Object{$_.Name -eq $HostNic.Name}
                                 If($DVSMatch){
                                     $vSwitch = $HostDVS
                                 }
                             }
                         }
-                        Else{
+                        
+                        # If no distributed switch detected, check for standard switch
+                        If($null -eq $vSwitch){
+                            $vSwitchType = "Standard"
                             $vSwitch = $VMHost | Get-VirtualSwitch -Standard | Where-Object{$_.NIC -eq $HostNic.DeviceName}
                         }
 
