@@ -423,29 +423,54 @@ ForEach($VCServer in $VCServers){
                 Catch{
                     $VMProps = $null
                 }
+                
                 Try{
                     $VMNotes = $VMachine | Select-Object -ExpandProperty Notes -ErrorAction Stop
                 }
                 Catch{
                     $VMNotes = $null
                 }
+                
                 Try{
                     $VMNicProps = Get-NetworkAdapter -VM $VMachine.Name -ErrorAction Stop
                 }
                 Catch{
                     $VMNicProps = $null
                 }
+                
                 Try{
                     $VMHardDiskProps = Get-HardDisk -VM $VMachine.Name -ErrorAction Stop
                 }
                 Catch{
                     $VMHardDiskProps = $null
                 }
+                
                 Try{
                     $VSnapshots = $VMachine | Get-Snapshot -ErrorAction Stop
                 }
                 Catch{
                     $VSnapshots = $null
+                }
+                
+                Try{
+                    $VMHostServer = Get-VMHost -VM $VMachine.Name -ErrorAction Stop
+                }
+                Catch{
+                    $VMHostServer = $null
+                }
+
+                Try{
+                    $VMCluster = Get-Cluster -VM $VMachine.Name -ErrorAction Stop
+                }
+                Catch{
+                    $VMCluster = $null
+                }
+                
+                Try{
+                    $VMDatacenter = Get-Datacenter -VM $VMachine.Name -ErrorAction Stop
+                }
+                Catch{
+                    $VMDatacenter = $null
                 }
 
                 $EncryptedProps = $VMProps.ExtensionData.Config.KeyId
@@ -476,9 +501,9 @@ ForEach($VCServer in $VCServers){
                     "Snapshots"     = ($VSnapshots | Measure-Object).Count
                     "Consolidate"   = $VMachine.ExtensionData.Runtime.ConsolidationNeeded
                     "Folder"        = $VMProps.Folder.Name
-                    "Host"          = (Get-VMHost -VM $VMachine.Name).Name
-                    "Cluster"       = (Get-Cluster -VM $VMachine.Name).Name
-                    "Datacenter"    = (Get-Datacenter -VM $VMachine.Name).Name
+                    "Host"          = $VMHostServer.Name
+                    "Cluster"       = $VMCluster.Name
+                    "Datacenter"    = $VMDatacenter.Name
                     "Notes"         = $VMNotes
                     "VM Path"       = $VMachine.ExtensionData.Config.Files.VmPathName
                 }
