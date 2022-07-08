@@ -13,9 +13,13 @@ Gather information from specified vCenter servers and outputs to Excel
 
 #region Configure variables
 $Date = Get-Date -Format yyyyMMdd
+# File name and folder location where spreadsheet will be created
 $LogFile = "C:\Logs\vCenter\vCenter_Report_$Date.xlsx"
+# vCenter servers
 $VCServers = @("vcenter-1.acme.com","vcenter-2.acme.com")
-$LoginAccount = "vcenterer@acme.com" #NOTE: if login account changes a new credential file will be created!
+# Logon credentials. NOTE: if login account changes a new credential file will be created!
+$LoginAccount = "vcenterer@acme.com"
+# Folder location where credential file will be created and stored; file name will be created automatically
 $CredentialFileDirectory = "\\fileserver.acme.com\Credentials"
 #endregion
 
@@ -257,11 +261,11 @@ ForEach($VCServer in $VCServers){
                     $ErrorCount ++
                 }
 
-                If($null -eq $HostObjView.Hardware.SystemInfo.OtherIdentifyingInfo){
-                        $HostSerialNumber = "N/A"
+                If($HostObjView.Hardware.SystemInfo.OtherIdentifyingInfo){
+                        $HostSerialNumber = $HostObjView.Hardware.SystemInfo.OtherIdentifyingInfo[1].IdentifierValue
                 }
                 Else{
-                    $HostSerialNumber = $HostObjView.Hardware.SystemInfo.OtherIdentifyingInfo[1].IdentifierValue
+                    $HostSerialNumber = "N/A"
                 }
 
                 Try{
@@ -356,6 +360,10 @@ ForEach($VCServer in $VCServers){
                         If($null -eq $vSwitch){
                             $vSwitchType = "Standard"
                             $vSwitch = $VMHost | Get-VirtualSwitch -Standard | Where-Object{$_.NIC -eq $HostNic.DeviceName}
+                        }
+
+                        If($null -eq $vSwitch){
+                            $vSwitchType = $null
                         }
 
                         $HostNicData += [PSCustomObject]@{
