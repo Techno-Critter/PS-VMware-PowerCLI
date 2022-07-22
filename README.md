@@ -7,7 +7,12 @@
       <li>Clusters
       <li>Licensing
       <li>Hosts
+      <li>Host NICs
+      <li>Host VMkernel Adapters
       <li>Virtual Machines
+      <li>VM NICs
+      <li>VM Disks
+      <li>Snapshots
       <li>Datastores
     </ul>
   <li>Find VM's using known IP address
