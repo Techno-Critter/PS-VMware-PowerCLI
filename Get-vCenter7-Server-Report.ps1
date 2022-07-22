@@ -246,7 +246,8 @@ ForEach($VCServer in $VCServers){
                         "Entity" = $License.EntityDisplayName
                         "Scope" = $License.Scope
                         "License Name" = $License.AssignedLicense.Name
-                        "License Key" = $License.AssignedLicense.EditionKey
+                        "License Key" = $License.AssignedLicense.LicenseKey
+                        "Edition Key" = $License.AssignedLicense.EditionKey
                     }
                 }
                 #endregion
