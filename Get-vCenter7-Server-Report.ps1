@@ -241,15 +241,15 @@ ForEach($VCServer in $VCServers){
                 $AssignedLicenses = $null
                 $AssignedLicenses = $AssignmentManager.QueryAssignedLicenses($VCLicenseServer.InstanceUUID)
 
-                ForEach($License in $AssignedLicenses){
+                ForEach($AssignedLicense in $AssignedLicenses){
                     $AssignedLicenseObject += [PSCustomObject]@{
-                        "Entity"          = $License.EntityDisplayName
-                        "License Name"    = $License.AssignedLicense.Name
-                        "Product Name"    = $License.AssignedLicense.Properties | Where-Object {$_.Key -eq 'ProductName'} | Select-Object -ExpandProperty Value
-                        "Product Version" = $License.AssignedLicense.Properties | Where-Object {$_.Key -eq 'ProductVersion'} | Select-Object -ExpandProperty Value
-                        "License Key"     = $License.AssignedLicense.LicenseKey
-                        "Edition Key"     = $License.AssignedLicense.EditionKey
-                        "Scope"           = $License.Scope
+                        "Entity"          = $AssignedLicense.EntityDisplayName
+                        "License Name"    = $AssignedLicense.AssignedLicense.Name
+                        "Product Name"    = $AssignedLicense.AssignedLicense.Properties | Where-Object {$_.Key -eq 'ProductName'} | Select-Object -ExpandProperty Value
+                        "Product Version" = $AssignedLicense.AssignedLicense.Properties | Where-Object {$_.Key -eq 'ProductVersion'} | Select-Object -ExpandProperty Value
+                        "License Key"     = $AssignedLicense.AssignedLicense.LicenseKey
+                        "Edition Key"     = $AssignedLicense.AssignedLicense.EditionKey
+                        "Scope"           = $AssignedLicense.Scope
                     }
                 }
                 #endregion
