@@ -93,9 +93,12 @@ Function Get-ColumnName ([int]$ColumnCount){
 }
 #endregion
 
-#region Configure arrays
+#region Configure arrays and counters
 $DatacenterData = @()
 $ClusterData = @()
+$VCLicenseServers = @()
+$LicenseCustomObject = @()
+$AssignedLicenseObject = @()
 $HostData = @()
 $HostNicData = @()
 $HostVMKData = @()
@@ -105,8 +108,7 @@ $VMDriveData = @()
 $VMHardDiskData = @()
 $DatastoresData = @()
 $SnapshotData = @()
-$VCLicenseServers = @()
-$LicenseCustomObject = @()
+$LicenseDataCounter = 0
 #endregion
 
 #region Credentials
@@ -185,53 +187,72 @@ ForEach($VCServer in $VCServers){
         #endregion
 
         #region Licensing
-        $VCLicenseServers = Get-View LicenseManager
-        # Enumerate license servers
-        ForEach($VCLicenseServer in $VCLicenseServers){
-            $LicenseCustomObjects = $VCLicenseServer.Licenses
+        # Licensing only needs to be run once. Once complete, increment counter so license section doesn't run again.
+        If($LicenseDataCounter -eq 0){
+            $VCLicenseServers = Get-View LicenseManager
+            # Enumerate license servers
+            ForEach($VCLicenseServer in $VCLicenseServers){
+                $LicenseCustomObjects = $VCLicenseServer.Licenses
 
-            ForEach($LicenseObj in $LicenseCustomObjects){
-                $LicenseProperties = $LicenseObj.Properties
+                ForEach($LicenseObj in $LicenseCustomObjects){
+                    $LicenseProperties = $LicenseObj.Properties
 
-                # License product and version handling
-                $LicenseProduct = $LicenseProperties | Where-Object {$_.Key -eq 'ProductName'} | Select-Object -ExpandProperty Value
-                $LicenseVersion = $LicenseProperties | Where-Object {$_.Key -eq 'ProductVersion'} | Select-Object -ExpandProperty Value
+                    # License product and version handling
+                    $LicenseProduct = $LicenseProperties | Where-Object {$_.Key -eq 'ProductName'} | Select-Object -ExpandProperty Value
+                    $LicenseVersion = $LicenseProperties | Where-Object {$_.Key -eq 'ProductVersion'} | Select-Object -ExpandProperty Value
 
-                # License expiration handling
-                $LicenseExpiration = "Never"
-                $LicenseExpiresValues = $LicenseProperties | Where-Object {$_.Key -eq 'ExpirationDate'} | Select-Object -ExpandProperty Value
-                If($LicenseObj.Name -eq "Product Evaluation"){
-                    $LicenseExpiration = "Evaluation"
-                }
-                ElseIf($LicenseExpiresValues){
-                    $LicenseExpiration = $LicenseExpiresValues
-                }
+                    # License expiration handling
+                    $LicenseExpiration = "Never"
+                    $LicenseExpiresValues = $LicenseProperties | Where-Object {$_.Key -eq 'ExpirationDate'} | Select-Object -ExpandProperty Value
+                    If($LicenseObj.Name -eq "Product Evaluation"){
+                        $LicenseExpiration = "Evaluation"
+                    }
+                    ElseIf($LicenseExpiresValues){
+                        $LicenseExpiration = $LicenseExpiresValues
+                    }
 
-                # License count handling
-                If($LicenseObj.Total -eq 0){
-                    $LicenseCount = "Unlimited"
-                }
-                Else{
-                    $LicenseCount = $LicenseObj.Total
-                }
+                    # License count handling
+                    If($LicenseObj.Total -eq 0){
+                        $LicenseCount = "Unlimited"
+                    }
+                    Else{
+                        $LicenseCount = $LicenseObj.Total
+                    }
 
-                $LicenseCustomObject += [PSCustomObject]@{
-                    "vCenter Server" = $VCServer
-                    "License Host"   = ([System.uri]$VCLicenseServer.Client.ServiceUrl).Host
-                    "Name"           = $LicenseObj.Name
-                    "Product"        = $LicenseProduct
-                    "Version"        = $LicenseVersion
-                    "Edition Key"    = $LicenseObj.EditionKey
-                    "License Key"    = $LicenseObj.LicenseKey
-                    "Total"          = $LicenseCount
-                    "In Use"         = $LicenseObj.Used
-                    "Units"          = $LicenseObj.CostUnit
-                    "Expires"        = $LicenseExpiration
-                    "Labels"         = $LicenseObj.Labels
+                    $LicenseCustomObject += [PSCustomObject]@{
+                        "vCenter Server" = $VCServer
+                        "License Host"   = ([System.uri]$VCLicenseServer.Client.ServiceUrl).Host
+                        "Name"           = $LicenseObj.Name
+                        "Product"        = $LicenseProduct
+                        "Version"        = $LicenseVersion
+                        "Edition Key"    = $LicenseObj.EditionKey
+                        "License Key"    = $LicenseObj.LicenseKey
+                        "Total"          = $LicenseCount
+                        "In Use"         = $LicenseObj.Used
+                        "Units"          = $LicenseObj.CostUnit
+                        "Expires"        = $LicenseExpiration
+                        "Labels"         = $LicenseObj.Labels
+                    }
                 }
+                #endregion
+
+                #region Assigned Licenses
+                $AssignmentManager = Get-View $VCLicenseServer.LicenseAssignmentManager
+                $AssignedLicense = $null
+                $AssignedLicense = $AssignmentManager.QueryAssignedLicenses($VCLicenseServer.InstanceUUID)
+
+                ForEach($License in $AssignedLicense){
+                    $AssignedLicenseObject += [PSCustomObject]@{
+                        "Entity" = $License.EntityDisplayName
+                        "Scope" = $License.Scope
+                        "License Name" = $License.AssignedLicense.Name
+                        "License Key" = $License.AssignedLicense.EditionKey
+                    }
+                }
+                #endregion
             }
+            $LicenseDataCounter ++
         }
-        #endregion
 
         #region Hosts
         Try{
@@ -669,6 +690,18 @@ If($LicensingLastRow -gt 1){
     $LicensingDataStyle += New-ExcelStyle -Range $LicensingHeaderRow -HorizontalAlignment Center
 
     $LicenseCustomObject | Sort-Object "License Host","Product" | Export-Excel @ExcelProps -WorksheetName "Licenses" -Style $LicensingDataStyle
+}
+
+# Assigned Licenses sheet
+$AssignedLicensesLastRow = ($AssignedLicenseObject | Measure-Object).Count + 1
+If($AssignedLicensesLastRow -gt 1){
+    $AssignedLicensesHeaderCount = Get-ColumnName ($AssignedLicenseObject | Get-Member | Where-Object{$_.MemberType -match "NoteProperty"} | Measure-Object).Count
+    $AssignedLicensesHeaderRow = "Assigned Licenses!`$A`$1:`$$AssignedLicensesHeaderCount`$1"
+
+    $AssignedLicensesDataStyle = @()
+    $AssignedLicensesDataStyle += New-ExcelStyle -Range $AssignedLicensesHeaderRow -HorizontalAlignment Center
+
+    $AssignedLicenseObject | Sort-Object "License Name","Entity" | Export-Excel @ExcelProps -WorksheetName "Assigned Licenses" -Style $AssignedLicensesDataStyle
 }
 
 # Host sheet
