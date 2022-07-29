@@ -95,6 +95,7 @@ Function Get-ColumnName ([int]$ColumnCount){
 
 #region Configure arrays and counters
 $vCenterError = @()
+$vCenterObject = @()
 $DatacenterData = @()
 $ClusterData = @()
 $VCLicenseServers = @()
@@ -138,11 +139,21 @@ ForEach($VCServer in $VCServers){
     }
     Catch{
         $ConnectionErrorCounter ++
-        $vCenterError += "The server $VCServer did not accept the connection request. This vCenter server will be skipped."
-        Write-Warning $vCenterError
+        $vCenterError += [PSCustomObject]@{
+            "Object" = "vCenter"
+            "Error"  = "The server $VCServer did not accept the connection request. This vCenter server will be skipped."
+        }
     }
 
     If($ConnectionErrorCounter -eq 0){
+        #region vCenter Servers
+        $vCenterObject += [PSCustomObject]@{
+            "Name" = ($global:DefaultVIServers).Name
+            "Port" = ($global:DefaultVIServers).Port
+            "Version" = ($global:DefaultVIServers).Version
+            "Build" = ($global:DefaultVIServers).Build
+        }
+        #endregion
 
         #region Datacenters
         Try{
@@ -265,6 +276,10 @@ ForEach($VCServer in $VCServers){
         }
         Catch{
             $VMHosts = $null
+            $vCenterError += [PSCustomObject]@{
+                "Object" = "vCenter"
+                "Error"  = "The Get-VMHost command failed on $VCServer"
+            }
         }
 
         If($null -ne $VMHosts){
@@ -277,6 +292,10 @@ ForEach($VCServer in $VCServers){
                 Catch{
                     $HostObjView = $null
                     $ErrorCount ++
+                    $vCenterError += [PSCustomObject]@{
+                        "Object" = "Host"
+                        "Error"  = "The Get-View command failed on host $($VMHost.Name)"
+                    }
                 }
 
                 Try{
@@ -285,6 +304,10 @@ ForEach($VCServer in $VCServers){
                 Catch{
                     $NTPServers = "Error"
                     $ErrorCount ++
+                    $vCenterError += [PSCustomObject]@{
+                        "Object" = "Host"
+                        "Error"  = "The Get-VMHostNtpServer command failed on host $($VMHost.Name)"
+                    }
                 }
 
                 If($HostObjView.Hardware.SystemInfo.OtherIdentifyingInfo){
@@ -351,6 +374,10 @@ ForEach($VCServer in $VCServers){
                     }
                     Catch{
                         $HostNICs = $null
+                        $vCenterError += [PSCustomObject]@{
+                            "Object" = "Host"
+                            "Error"  = "The Get-VMHostNetworkAdapter (Physical) command failed on $($VMHost.Name)"
+                        }
                     }
 
                     ForEach($HostNic in $HostNICs){
@@ -419,6 +446,10 @@ ForEach($VCServer in $VCServers){
                     }
                     Catch{
                         $HostVMKs = $null
+                        $vCenterError += [PSCustomObject]@{
+                            "Object" = "Host"
+                            "Error"  = "The Get-VMHostNetworkAdapter (VMKernel) command failed on $($VMHost.Name)"
+                        }
                     }
 
                     ForEach($HostVMK in $HostVMKs){
@@ -456,6 +487,10 @@ ForEach($VCServer in $VCServers){
                 }
                 Catch{
                     $VMProps = $null
+                    $vCenterError += [PSCustomObject]@{
+                        "Object" = "Virtual Machine"
+                        "Error"  = "The Get-VM command failed on $($VMachine.Name)"
+                    }
                 }
                 
                 Try{
@@ -470,6 +505,10 @@ ForEach($VCServer in $VCServers){
                 }
                 Catch{
                     $VMNicProps = $null
+                    $vCenterError += [PSCustomObject]@{
+                        "Object" = "Virtual Machine"
+                        "Error"  = "The Get-NetworkAdapter command failed on $($VMachine.Name)"
+                    }
                 }
                 
                 Try{
@@ -477,6 +516,10 @@ ForEach($VCServer in $VCServers){
                 }
                 Catch{
                     $VMHardDiskProps = $null
+                    $vCenterError += [PSCustomObject]@{
+                        "Object" = "Virtual Machine"
+                        "Error"  = "The Get-HardDisk command failed on $($VMachine.Name)"
+                    }
                 }
                 
                 Try{
@@ -491,6 +534,10 @@ ForEach($VCServer in $VCServers){
                 }
                 Catch{
                     $VMHostServer = $null
+                    $vCenterError += [PSCustomObject]@{
+                        "Object" = "Virtual Machine"
+                        "Error"  = "The Get-VMHost command failed on $($VMachine.Name)"
+                    }
                 }
 
                 Try{
@@ -624,7 +671,11 @@ ForEach($VCServer in $VCServers){
         }
         Catch{
             $VDatastores = $null
-        }
+            $vCenterError += [PSCustomObject]@{
+                "Object" = "Datastore"
+                "Error"  = "The Get-Datastore command failed on $VCServer"
+            }
+         }
 
         ForEach($VDatastore in $VDatastores){
             If($VDatastore.CapacityGB -eq 0){
@@ -662,6 +713,17 @@ $ExcelProps = @{
 }
 
 $ExcelProps.Path = $LogFile
+
+# vCenter sheet
+$vCenterObjectLastRow = ($vCenterObject | Measure-Object).Count + 1
+If($vCenterObjectLastRow -gt 1){
+    $vCenterObjectHeaderCount = Get-ColumnName ($vCenterObject | Get-Member | Where-Object{$_.MemberType -match "NoteProperty"} | Measure-Object).Count
+    $vCenterObjectHeaderRow = "'vCenter Servers'!`$A`$1:`$$vCenterObjectHeaderCount`$1"
+
+    $vCenterObjectStyle = New-ExcelStyle -Range $vCenterObjectHeaderRow -HorizontalAlignment Center
+
+    $vCenterObject | Sort-Object "Name" | Export-Excel @ExcelProps -WorksheetName "vCenter Servers" -Style $vCenterObjectStyle
+}
 
 # Datacenter sheet
 $DatacenterLastRow = ($DatacenterData | Measure-Object).Count + 1
