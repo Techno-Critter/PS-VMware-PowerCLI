@@ -131,7 +131,6 @@ Else{
 
 # Connect to vCenters and retrieve data
 ForEach($VCServer in $VCServers){
-    $vCenterError = $null
     Set-PowerCLIConfiguration -InvalidCertificateAction Ignore -Confirm:$False
     Try{
         Connect-VIServer -Server $VCServer -Credential $Credentials
