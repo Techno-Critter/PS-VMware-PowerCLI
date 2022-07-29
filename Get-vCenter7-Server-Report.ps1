@@ -148,10 +148,10 @@ ForEach($VCServer in $VCServers){
     If($ConnectionErrorCounter -eq 0){
         #region vCenter Servers
         $vCenterObject += [PSCustomObject]@{
-            "Name" = ($global:DefaultVIServers).Name
-            "Port" = ($global:DefaultVIServers).Port
-            "Version" = ($global:DefaultVIServers).Version
-            "Build" = ($global:DefaultVIServers).Build
+            "Name"    = ($global:DefaultVIServer).Name
+            "Port"    = ($global:DefaultVIServer).Port
+            "Version" = ($global:DefaultVIServer).Version
+            "Build"   = ($global:DefaultVIServer).Build
         }
         #endregion
 
