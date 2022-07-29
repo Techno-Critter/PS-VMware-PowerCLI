@@ -94,6 +94,7 @@ Function Get-ColumnName ([int]$ColumnCount){
 #endregion
 
 #region Configure arrays and counters
+$vCenterError = @()
 $DatacenterData = @()
 $ClusterData = @()
 $VCLicenseServers = @()
@@ -136,7 +137,7 @@ ForEach($VCServer in $VCServers){
         Connect-VIServer -Server $VCServer -Credential $Credentials
     }
     Catch{
-        $vCenterError = "The server $VCServer did not accept the connection request. This vCenter server will be skipped."
+        $vCenterError += "The server $VCServer did not accept the connection request. This vCenter server will be skipped."
         Write-Warning $vCenterError
     }
 
@@ -650,7 +651,7 @@ ForEach($VCServer in $VCServers){
         Disconnect-VIServer -Server $VCServer -Confirm:$False
     }
     Else{
-        $vCenterError = "The vCenter server $VCServer is not responding to access requests."
+        $vCenterError += "The vCenter server $VCServer is not responding to access requests."
         Write-Warning $vCenterError
     }
 }
