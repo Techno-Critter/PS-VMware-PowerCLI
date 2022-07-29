@@ -131,16 +131,18 @@ Else{
 
 # Connect to vCenters and retrieve data
 ForEach($VCServer in $VCServers){
+    $ConnectionErrorCounter = 0
     Set-PowerCLIConfiguration -InvalidCertificateAction Ignore -Confirm:$False
     Try{
         Connect-VIServer -Server $VCServer -Credential $Credentials
     }
     Catch{
+        $ConnectionErrorCounter ++
         $vCenterError += "The server $VCServer did not accept the connection request. This vCenter server will be skipped."
         Write-Warning $vCenterError
     }
 
-    If($null -eq $vCenterError){
+    If($ConnectionErrorCounter -eq 0){
 
         #region Datacenters
         Try{
@@ -648,10 +650,6 @@ ForEach($VCServer in $VCServers){
         #endregion
 
         Disconnect-VIServer -Server $VCServer -Confirm:$False
-    }
-    Else{
-        $vCenterError += "The vCenter server $VCServer is not responding to access requests."
-        Write-Warning $vCenterError
     }
 }
 
