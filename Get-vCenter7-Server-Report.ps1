@@ -649,6 +649,10 @@ ForEach($VCServer in $VCServers){
 
         Disconnect-VIServer -Server $VCServer -Confirm:$False
     }
+    Else{
+        $vCenterError = "The vCenter server $VCServer is not responding to access requests."
+        Write-Warning $vCenterError
+    }
 }
 
 #region Output to Excel
@@ -853,5 +857,17 @@ If($DatastoreLastRow -gt 1){
     $DatastoresConditionalFormatting += New-ConditionalText -Range $DatastoreAvailableColumn -ConditionalType NotContainsText "Available" -ConditionalTextColor Maroon -BackgroundColor Pink
 
     $DatastoresData | Sort-Object "Path","Store" | Export-Excel @ExcelProps -WorkSheetname "Datastores" -Style $DatastoresDataStyle -ConditionalFormat $DatastoresConditionalFormatting
+}
+
+# Error sheet
+$vCenterErrorLastRow = ($vCenterError | Measure-Object).Count + 1
+If($vCenterErrorLastRow -gt 1){
+    $vCenterErrorHeaderCount = Get-ColumnName ($vCenterError | Get-Member | Where-Object{$_.MemberType -match "NoteProperty"} | Measure-Object).Count
+    $vCenterErrorHeaderRow = "Errors!`$A`$1:`$$vCenterErrorHeaderCount`$1"
+
+    $vCenterErrorStyle = @()
+    $vCenterErrorStyle += New-ExcelStyle -Range $vCenterErrorHeaderRow -HorizontalAlignment Center
+
+    $vCenterError | Export-Excel @ExcelProps -WorksheetName "Errors" -Style $vCenterErrorStyle
 }
 #endregion
