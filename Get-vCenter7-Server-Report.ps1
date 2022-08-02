@@ -148,10 +148,14 @@ ForEach($VCServer in $VCServers){
     If($ConnectionErrorCounter -eq 0){
         #region vCenter Servers
         $vCenterObject += [PSCustomObject]@{
-            "Name"    = ($global:DefaultVIServer).Name
-            "Port"    = ($global:DefaultVIServer).Port
-            "Version" = ($global:DefaultVIServer).Version
-            "Build"   = ($global:DefaultVIServer).Build
+            "Name"           = ($global:DefaultVIServer).Name
+            "Port"           = ($global:DefaultVIServer).Port
+            "Version"        = ($global:DefaultVIServer).Version
+            "Build"          = ($global:DefaultVIServer).Build
+            "Patch"          = ($global:DefaultVIServer).ExtensionData.Content.About.PatchLevel
+            "OS Type"        = ($global:DefaultVIServer).ExtensionData.Content.About.OsType
+            "Server Clock"   = ($global:DefaultVIServer).ExtensionData.ServerClock
+            "Client Timeout" = ("" + ((($global:DefaultVIServer).ExtensionData.Client.ServiceTimeout)/60000) + " minute(s)")
         }
         #endregion
 
