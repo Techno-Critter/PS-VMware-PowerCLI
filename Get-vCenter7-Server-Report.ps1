@@ -167,7 +167,7 @@ ForEach($VCServer in $VCServers){
             $VDatacenters = $null
         }
 
-        If($null -ne $VDatacenters){
+        If($VDatacenters){
             ForEach($VDatacenter in $VDatacenters){
                 $DatacenterData += [PSCustomObject]@{
                     "Datacenter" = $VDatacenter.Name
@@ -187,7 +187,7 @@ ForEach($VCServer in $VCServers){
             $VClusters = $null
         }
 
-        If($null -ne $VClusters){
+        If($VClusters){
             ForEach($VCluster in $VCLusters){
                 $ClusterData += [PSCustomObject]@{
                     "Cluster"    = $VCluster.Name
@@ -286,7 +286,7 @@ ForEach($VCServer in $VCServers){
             }
         }
 
-        If($null -ne $VMHosts){
+        If($VMHosts){
             ForEach($VMHost in $VMHosts){
                 $ErrorCount = 0
                 
@@ -484,7 +484,7 @@ ForEach($VCServer in $VCServers){
             $VMachines = $null
         }
 
-        If($null -ne $VMachines){
+        If($VMachines){
             ForEach($VMachine in $VMachines){
                 Try{
                     $VMProps = Get-VM -Name $VMachine.Name | Get-View -ErrorAction Stop
