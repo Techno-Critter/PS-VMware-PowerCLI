@@ -612,11 +612,12 @@ ForEach($VCServer in $VCServers){
                 If($VSnapshots){
                     ForEach($VSnapshot in $VSnapshots){
                         $SnapshotData += [PSCustomObject]@{
-                            "VM"          = $VMachine.Name
-                            "Snapshot"    = $VSnapshot.Name
-                            "Created"     = $VSnapshot.Created
-                            "State"       = $VSnapshot.PowerState
-                            "Description" = $VSnapshot.Description
+                            "VM"             = $VMachine.Name
+                            "Snapshot"       = $VSnapshot.Name
+                            "Created"        = $VSnapshot.Created
+                            "VM State"       = $VMachine.PowerState
+                            "Snapshot State" = $VSnapshot.PowerState
+                            "Description"    = $VSnapshot.Description
                         }
                     }
                 }
