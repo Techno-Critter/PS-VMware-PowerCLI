@@ -20,6 +20,7 @@ $VCServers = @("vcenter-1.acme.com","vcenter-2.acme.com")
 # Logon credentials. NOTE: if login account changes a new credential file will be created!
 $LoginAccount = "vcenterer@acme.com"
 # Folder location where credential file will be created and stored; file name will be created automatically
+# User must have write access to credential file directory!!!
 $CredentialFileDirectory = "\\fileserver.acme.com\Credentials"
 #endregion
 
