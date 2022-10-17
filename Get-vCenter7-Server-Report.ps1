@@ -847,6 +847,7 @@ If($VMDataLastRow -gt 1){
     $VMDataConditionalFormatting += New-ConditionalText -Range $VMSnapshotColumn -ConditionalType GreaterThanOrEqual "1" -ConditionalTextColor Brown -BackgroundColor Yellow
     $VMDataConditionalFormatting += New-ConditionalText -Range $VMConsolidationColumn -ConditionalType ContainsText "TRUE" -ConditionalTextColor Brown -BackgroundColor Yellow
     $VMDataConditionalFormatting += New-ConditionalText -Range $VMOrphanedColumn -ConditionalType ContainsText "Orphaned" -ConditionalTextColor Maroon -BackgroundColor Pink
+    $VMDataConditionalFormatting += New-ConditionalText -Range $VMOrphanedColumn -ConditionalType ContainsText "Disconnected" -ConditionalTextColor Brown -BackgroundColor Yellow
 
     $VMData | Sort-Object "Name" | Export-Excel @ExcelProps -WorkSheetname "VMs" -Style $VMDataStyle -ConditionalFormat $VMDataConditionalFormatting
 }
