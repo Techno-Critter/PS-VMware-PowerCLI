@@ -52,6 +52,28 @@ Function Get-Size([double]$DataSize){
 
 #region Function: Convert number of object items into Excel column headers
 Function Get-ColumnName ([int]$ColumnCount){
+    <#
+    .SYNOPSIS
+    Converts integer into Excel column headers
+
+    .DESCRIPTION
+    Takes a provided number of columns in a table and converts the number into Excel header format
+    Input: 27 - Output: AA
+    Input: 2 - Ouput: B
+
+    .EXAMPLE
+    Get-ColumnName 27
+
+    .INPUTS
+    Integer
+
+    .OUTPUTS
+    String
+
+    .NOTES
+    Author: Stan Crider and Dennis Magee
+    #>
+
     If(($ColumnCount -le 702) -and ($ColumnCount -ge 1)){
         $ColumnCount = [Math]::Floor($ColumnCount)
         $CharStart = 64
