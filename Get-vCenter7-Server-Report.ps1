@@ -164,6 +164,7 @@ ForEach($VCServer in $VCServers){
         $ConnectionErrorCounter ++
         $vCenterError += [PSCustomObject]@{
             "Object" = "vCenter"
+            "Name"   = $VCServer
             "Error"  = "The server $VCServer did not accept the connection request. This vCenter server will be skipped."
         }
     }
@@ -305,6 +306,7 @@ ForEach($VCServer in $VCServers){
             $VMHosts = $null
             $vCenterError += [PSCustomObject]@{
                 "Object" = "vCenter"
+                "Name"   = $VCServer
                 "Error"  = "The Get-VMHost command failed on $VCServer"
             }
         }
@@ -321,6 +323,7 @@ ForEach($VCServer in $VCServers){
                     $ErrorCount ++
                     $vCenterError += [PSCustomObject]@{
                         "Object" = "Host"
+                        "Name"   = $VMHost.Name
                         "Error"  = "The Get-View command failed on host $($VMHost.Name)"
                     }
                 }
@@ -333,6 +336,7 @@ ForEach($VCServer in $VCServers){
                     $ErrorCount ++
                     $vCenterError += [PSCustomObject]@{
                         "Object" = "Host"
+                        "Name"   = $VMHost.Name
                         "Error"  = "The Get-VMHostNtpServer command failed on host $($VMHost.Name)"
                     }
                 }
@@ -403,6 +407,7 @@ ForEach($VCServer in $VCServers){
                         $HostNICs = $null
                         $vCenterError += [PSCustomObject]@{
                             "Object" = "Host"
+                            "Name"   = $VMHost.Name
                             "Error"  = "The Get-VMHostNetworkAdapter (Physical) command failed on $($VMHost.Name)"
                         }
                     }
@@ -475,6 +480,7 @@ ForEach($VCServer in $VCServers){
                         $HostVMKs = $null
                         $vCenterError += [PSCustomObject]@{
                             "Object" = "Host"
+                            "Name"   = $VMHost.Name
                             "Error"  = "The Get-VMHostNetworkAdapter (VMKernel) command failed on $($VMHost.Name)"
                         }
                     }
@@ -517,6 +523,7 @@ ForEach($VCServer in $VCServers){
                     $VMProps = $null
                     $vCenterError += [PSCustomObject]@{
                         "Object" = "Virtual Machine"
+                        "Name"   = $VMachine.Name
                         "Error"  = "The Get-VM command failed on $($VMachine.Name)"
                     }
                 }
@@ -535,6 +542,7 @@ ForEach($VCServer in $VCServers){
                     $VMNicProps = $null
                     $vCenterError += [PSCustomObject]@{
                         "Object" = "Virtual Machine"
+                        "Name"   = $VMachine.Name
                         "Error"  = "The Get-NetworkAdapter command failed on $($VMachine.Name)"
                     }
                 }
@@ -546,6 +554,7 @@ ForEach($VCServer in $VCServers){
                     $VMHardDiskProps = $null
                     $vCenterError += [PSCustomObject]@{
                         "Object" = "Virtual Machine"
+                        "Name"   = $VMachine.Name
                         "Error"  = "The Get-HardDisk command failed on $($VMachine.Name)"
                     }
                 }
@@ -711,6 +720,7 @@ ForEach($VCServer in $VCServers){
             $VDatastores = $null
             $vCenterError += [PSCustomObject]@{
                 "Object" = "Datastore"
+                "Name"   = $VCServer
                 "Error"  = "The Get-Datastore command failed on $VCServer"
             }
          }
@@ -969,6 +979,6 @@ If($vCenterErrorLastRow -gt 1){
     $vCenterErrorStyle = @()
     $vCenterErrorStyle += New-ExcelStyle -Range $vCenterErrorHeaderRow -HorizontalAlignment Center
 
-    $vCenterError | Export-Excel @ExcelProps -WorksheetName "Errors" -Style $vCenterErrorStyle
+    $vCenterError | Sort-Object "Object","Name" | Export-Excel @ExcelProps -WorksheetName "Errors" -Style $vCenterErrorStyle
 }
 #endregion
