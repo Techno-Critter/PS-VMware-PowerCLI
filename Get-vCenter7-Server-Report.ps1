@@ -177,7 +177,7 @@ ForEach($VCServer in $VCServers){
         "Build"          = ($global:DefaultVIServer).Build
         "Patch"          = ($global:DefaultVIServer).ExtensionData.Content.About.PatchLevel
         "OS Type"        = ($global:DefaultVIServer).ExtensionData.Content.About.OsType
-        "Server Clock"   = ($global:DefaultVIServer).ExtensionData.ServerClock
+        "Last Boot"      = ($global:DefaultVIServer).ExtensionData.ServerClock
         "Client Timeout" = ("" + ((($global:DefaultVIServer).ExtensionData.Client.ServiceTimeout)/60000) + " minute(s)")
     }
     #endregion
