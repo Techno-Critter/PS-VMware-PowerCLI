@@ -734,7 +734,7 @@ ForEach($VCServer in $VCServers){
             "Name"   = $VCServer
             "Error"  = "The Get-Datastore command failed on $VCServer"
         }
-     }
+    }
 
     ForEach($VDatastore in $VDatastores){
         If($VDatastore.CapacityGB -eq 0){
@@ -759,7 +759,7 @@ ForEach($VCServer in $VCServers){
     }
     #endregion
 
-        Disconnect-VIServer -Server $VCServer -Confirm:$False
+    Disconnect-VIServer -Server $VCServer -Confirm:$False
 }
 
 Write-Progress -Activity "vCenter server $VCServer" -Completed
