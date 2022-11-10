@@ -155,602 +155,614 @@ Else{
 
 # Connect to vCenters and retrieve data
 ForEach($VCServer in $VCServers){
-    $ConnectionErrorCounter = 0
+    Write-Progress -Activity "vCenter server $VCServer" -Status "Connecting to vCenter server"
     Set-PowerCLIConfiguration -InvalidCertificateAction Ignore -Confirm:$False
     Try{
         Connect-VIServer -Server $VCServer -Credential $Credentials
     }
     Catch{
-        $ConnectionErrorCounter ++
         $vCenterError += [PSCustomObject]@{
             "Object" = "vCenter"
             "Name"   = $VCServer
             "Error"  = "The server $VCServer did not accept the connection request. This vCenter server will be skipped."
         }
+        Continue
     }
 
-    If($ConnectionErrorCounter -eq 0){
-        #region vCenter Servers
-        $vCenterObject += [PSCustomObject]@{
-            "Name"           = ($global:DefaultVIServer).Name
-            "Port"           = ($global:DefaultVIServer).Port
-            "Version"        = ($global:DefaultVIServer).Version
-            "Build"          = ($global:DefaultVIServer).Build
-            "Patch"          = ($global:DefaultVIServer).ExtensionData.Content.About.PatchLevel
-            "OS Type"        = ($global:DefaultVIServer).ExtensionData.Content.About.OsType
-            "Server Clock"   = ($global:DefaultVIServer).ExtensionData.ServerClock
-            "Client Timeout" = ("" + ((($global:DefaultVIServer).ExtensionData.Client.ServiceTimeout)/60000) + " minute(s)")
-        }
-        #endregion
+    #region vCenter Servers
+    $vCenterObject += [PSCustomObject]@{
+        "Name"           = ($global:DefaultVIServer).Name
+        "Port"           = ($global:DefaultVIServer).Port
+        "Version"        = ($global:DefaultVIServer).Version
+        "Build"          = ($global:DefaultVIServer).Build
+        "Patch"          = ($global:DefaultVIServer).ExtensionData.Content.About.PatchLevel
+        "OS Type"        = ($global:DefaultVIServer).ExtensionData.Content.About.OsType
+        "Server Clock"   = ($global:DefaultVIServer).ExtensionData.ServerClock
+        "Client Timeout" = ("" + ((($global:DefaultVIServer).ExtensionData.Client.ServiceTimeout)/60000) + " minute(s)")
+    }
+    #endregion
 
-        #region Datacenters
-        Try{
-            $VDatacenters = Get-Datacenter -Server $VCServer -ErrorAction Stop
-        }
-        Catch{
-            $VDatacenters = $null
-        }
+    #region Datacenters
+    Try{
+        $VDatacenters = Get-Datacenter -Server $VCServer -ErrorAction Stop
+    }
+    Catch{
+        $VDatacenters = $null
+    }
 
-        If($VDatacenters){
-            ForEach($VDatacenter in $VDatacenters){
-                $DatacenterData += [PSCustomObject]@{
-                    "Datacenter" = $VDatacenter.Name
-                    "vCenter"    = $VCServer
-                    "Hosts"      = (Get-VMHost -Location $VDatacenter.Name | Measure-Object).Count
-                    "VMs"        = (Get-VM -Location $VDatacenter.Name | Measure-Object).Count
-                }
+    Write-Progress -Activity "vCenter server $VCServer" -Status "Gathering Datacenter information..."
+    If($VDatacenters){
+        ForEach($VDatacenter in $VDatacenters){
+            $DatacenterData += [PSCustomObject]@{
+                "Datacenter" = $VDatacenter.Name
+                "vCenter"    = $VCServer
+                "Hosts"      = (Get-VMHost -Location $VDatacenter.Name | Measure-Object).Count
+                "VMs"        = (Get-VM -Location $VDatacenter.Name | Measure-Object).Count
             }
         }
-        #endregion
+    }
+    #endregion
 
-        #region Clusters
-        Try{
-            $VClusters = Get-Cluster -Server $VCServer -ErrorAction Stop
-        }
-        Catch{
-            $VClusters = $null
-        }
+    #region Clusters
+    Try{
+        $VClusters = Get-Cluster -Server $VCServer -ErrorAction Stop
+    }
+    Catch{
+        $VClusters = $null
+    }
 
-        If($VClusters){
-            ForEach($VCluster in $VCLusters){
-                $ClusterData += [PSCustomObject]@{
-                    "Cluster"    = $VCluster.Name
-                    "Datacenter" = (Get-Datacenter -Cluster $VCluster).Name
-                    "vCenter"    = $VCServer
-                    "HA"         = $VCluster.HAEnabled
-                    "DRS"        = $VCluster.DrsEnabled
-                    "AutoLevel"  = $VCluster.DrsAutomationLevel
-                    "Hosts"      = (Get-VMHost -Location $VCluster.Name | Measure-Object).Count
-                    "VMs"        = (Get-VM -Location $VCluster.Name | Measure-Object).Count
-                }
+    Write-Progress -Activity "vCenter server $VCServer" -Status "Gathering Cluster information..."
+    If($VClusters){
+        ForEach($VCluster in $VCLusters){
+            $ClusterData += [PSCustomObject]@{
+                "Cluster"    = $VCluster.Name
+                "Datacenter" = (Get-Datacenter -Cluster $VCluster).Name
+                "vCenter"    = $VCServer
+                "HA"         = $VCluster.HAEnabled
+                "DRS"        = $VCluster.DrsEnabled
+                "EVC"        = $VCluster.ExtensionData.Summary.CurrentEVCModeKey
+                "AutoLevel"  = $VCluster.DrsAutomationLevel
+                "Hosts"      = (Get-VMHost -Location $VCluster.Name | Measure-Object).Count
+                "VMs"        = (Get-VM -Location $VCluster.Name | Measure-Object).Count
             }
         }
-        #endregion
+    }
+    #endregion
 
-        #region Licensing
-        # Licensing only needs to be run once. Once complete, increment counter so license section doesn't run again.
-        If($LicenseDataCounter -eq 0){
-            $VCLicenseServers = Get-View LicenseManager
-            # Enumerate license servers
-            ForEach($VCLicenseServer in $VCLicenseServers){
-                $LicenseCustomObjects = $VCLicenseServer.Licenses
+    #region Licensing
+    # Licensing only needs to be run once. Once complete, increment counter so license section doesn't run again.
+    If($LicenseDataCounter -eq 0){
+        Write-Progress -Activity "vCenter server $VCServer" -Status "Gathering licensing information..."
+        $VCLicenseServers = Get-View LicenseManager
+        # Enumerate license servers
+        ForEach($VCLicenseServer in $VCLicenseServers){
+            $LicenseCustomObjects = $VCLicenseServer.Licenses
 
-                ForEach($LicenseObj in $LicenseCustomObjects){
-                    $LicenseProperties = $LicenseObj.Properties
+            ForEach($LicenseObj in $LicenseCustomObjects){
+                $LicenseProperties = $LicenseObj.Properties
 
-                    # License product and version handling
-                    $LicenseProduct = $LicenseProperties | Where-Object {$_.Key -eq 'ProductName'} | Select-Object -ExpandProperty Value
-                    $LicenseVersion = $LicenseProperties | Where-Object {$_.Key -eq 'ProductVersion'} | Select-Object -ExpandProperty Value
+                # License product and version handling
+                $LicenseProduct = $LicenseProperties | Where-Object {$_.Key -eq 'ProductName'} | Select-Object -ExpandProperty Value
+                $LicenseVersion = $LicenseProperties | Where-Object {$_.Key -eq 'ProductVersion'} | Select-Object -ExpandProperty Value
 
-                    # License expiration handling
-                    $LicenseExpiration = "Never"
-                    $LicenseExpiresValues = $LicenseProperties | Where-Object {$_.Key -eq 'ExpirationDate'} | Select-Object -ExpandProperty Value
-                    If($LicenseObj.Name -eq "Product Evaluation"){
-                        $LicenseExpiration = "Evaluation"
-                    }
-                    ElseIf($LicenseExpiresValues){
-                        $LicenseExpiration = $LicenseExpiresValues
-                    }
-
-                    # License count handling
-                    If($LicenseObj.Total -eq 0){
-                        $LicenseCount = "Unlimited"
-                    }
-                    Else{
-                        $LicenseCount = $LicenseObj.Total
-                    }
-
-                    $LicenseCustomObject += [PSCustomObject]@{
-                        "vCenter Server" = $VCServer
-                        "License Host"   = ([System.uri]$VCLicenseServer.Client.ServiceUrl).Host
-                        "Name"           = $LicenseObj.Name
-                        "Product"        = $LicenseProduct
-                        "Version"        = $LicenseVersion
-                        "Edition Key"    = $LicenseObj.EditionKey
-                        "License Key"    = $LicenseObj.LicenseKey
-                        "Total"          = $LicenseCount
-                        "In Use"         = $LicenseObj.Used
-                        "Units"          = $LicenseObj.CostUnit
-                        "Expires"        = $LicenseExpiration
-                        "Labels"         = $LicenseObj.Labels
-                    }
+                # License expiration handling
+                $LicenseExpiration = "Never"
+                $LicenseExpiresValues = $LicenseProperties | Where-Object {$_.Key -eq 'ExpirationDate'} | Select-Object -ExpandProperty Value
+                If($LicenseObj.Name -eq "Product Evaluation"){
+                    $LicenseExpiration = "Evaluation"
                 }
-                #endregion
-
-                #region Assigned Licenses
-                $AssignmentManager = Get-View $VCLicenseServer.LicenseAssignmentManager
-                $AssignedLicenses = $null
-                $AssignedLicenses = $AssignmentManager.QueryAssignedLicenses($VCLicenseServer.InstanceUUID)
-
-                ForEach($AssignedLicense in $AssignedLicenses){
-                    $AssignedLicenseObject += [PSCustomObject]@{
-                        "Entity"          = $AssignedLicense.EntityDisplayName
-                        "License Name"    = $AssignedLicense.AssignedLicense.Name
-                        "Product Name"    = $AssignedLicense.AssignedLicense.Properties | Where-Object {$_.Key -eq 'ProductName'} | Select-Object -ExpandProperty Value
-                        "Product Version" = $AssignedLicense.AssignedLicense.Properties | Where-Object {$_.Key -eq 'ProductVersion'} | Select-Object -ExpandProperty Value
-                        "License Key"     = $AssignedLicense.AssignedLicense.LicenseKey
-                        "Edition Key"     = $AssignedLicense.AssignedLicense.EditionKey
-                        "Scope"           = $AssignedLicense.Scope
-                    }
-                }
-                #endregion
-            }
-            $LicenseDataCounter ++
-        }
-
-        #region Hosts
-        Try{
-            $VMHosts = Get-VMHost -Server $VCServer -ErrorAction Stop
-        }
-        Catch{
-            $VMHosts = $null
-            $vCenterError += [PSCustomObject]@{
-                "Object" = "vCenter"
-                "Name"   = $VCServer
-                "Error"  = "The Get-VMHost command failed on $VCServer"
-            }
-        }
-
-        If($VMHosts){
-            ForEach($VMHost in $VMHosts){
-                $ErrorCount = 0
-                
-                Try{
-                    $HostObjView = $VMHost | Get-View -ErrorAction Stop
-                }
-                Catch{
-                    $HostObjView = $null
-                    $ErrorCount ++
-                    $vCenterError += [PSCustomObject]@{
-                        "Object" = "Host"
-                        "Name"   = $VMHost.Name
-                        "Error"  = "The Get-View command failed on host $($VMHost.Name)"
-                    }
+                ElseIf($LicenseExpiresValues){
+                    $LicenseExpiration = $LicenseExpiresValues
                 }
 
-                Try{
-                    $NTPServers =  Get-VMHostNtpServer -VMHost $VMHost.Name -ErrorAction Stop
-                }
-                Catch{
-                    $NTPServers = "Error"
-                    $ErrorCount ++
-                    $vCenterError += [PSCustomObject]@{
-                        "Object" = "Host"
-                        "Name"   = $VMHost.Name
-                        "Error"  = "The Get-VMHostNtpServer command failed on host $($VMHost.Name)"
-                    }
-                }
-
-                If($HostObjView.Hardware.SystemInfo.OtherIdentifyingInfo){
-                        $HostSerialNumber = $HostObjView.Hardware.SystemInfo.OtherIdentifyingInfo[1].IdentifierValue
+                # License count handling
+                If($LicenseObj.Total -eq 0){
+                    $LicenseCount = "Unlimited"
                 }
                 Else{
-                    $HostSerialNumber = "N/A"
+                    $LicenseCount = $LicenseObj.Total
                 }
 
-                Try{
-                    $ESXCli = Get-EsxCli -VMHost $VMHost.Name -V2 -ErrorAction Stop
+                $LicenseCustomObject += [PSCustomObject]@{
+                    "vCenter Server" = $VCServer
+                    "License Host"   = ([System.uri]$VCLicenseServer.Client.ServiceUrl).Host
+                    "Name"           = $LicenseObj.Name
+                    "Product"        = $LicenseProduct
+                    "Version"        = $LicenseVersion
+                    "Edition Key"    = $LicenseObj.EditionKey
+                    "License Key"    = $LicenseObj.LicenseKey
+                    "Total"          = $LicenseCount
+                    "In Use"         = $LicenseObj.Used
+                    "Units"          = $LicenseObj.CostUnit
+                    "Expires"        = $LicenseExpiration
+                    "Labels"         = $LicenseObj.Labels
                 }
-                Catch{
-                    $ESXCli = $null
+            }
+            #endregion
+
+            #region Assigned Licenses
+            $AssignmentManager = Get-View $VCLicenseServer.LicenseAssignmentManager
+            $AssignedLicenses = $null
+            $AssignedLicenses = $AssignmentManager.QueryAssignedLicenses($VCLicenseServer.InstanceUUID)
+
+            ForEach($AssignedLicense in $AssignedLicenses){
+                $AssignedLicenseObject += [PSCustomObject]@{
+                    "Entity"          = $AssignedLicense.EntityDisplayName
+                    "License Name"    = $AssignedLicense.AssignedLicense.Name
+                    "Product Name"    = $AssignedLicense.AssignedLicense.Properties | Where-Object {$_.Key -eq 'ProductName'} | Select-Object -ExpandProperty Value
+                    "Product Version" = $AssignedLicense.AssignedLicense.Properties | Where-Object {$_.Key -eq 'ProductVersion'} | Select-Object -ExpandProperty Value
+                    "License Key"     = $AssignedLicense.AssignedLicense.LicenseKey
+                    "Edition Key"     = $AssignedLicense.AssignedLicense.EditionKey
+                    "Scope"           = $AssignedLicense.Scope
                 }
-                
-                If($ESXCli){
-                    $PCINIC = $ESXCli.Network.NIC.List.Invoke()
-                }
-                Else{
-                    $PCINIC = $null
-                }
-                
-                $NetworkSystem = $HostObjView.ConfigManager.NetworkSystem
-                $NetworkSystemView = Get-View $NetworkSystem
-                Try{
-                    $HostDistributedVirtualSwitches = Get-VDSwitch -VMHost $VMHost.Name -ErrorAction Stop
-                }
-                Catch{
-                    $HostDistributedVirtualSwitches = $null
-                }
+            }
+            #endregion
+        }
+        $LicenseDataCounter ++
+    }
 
-                If($ErrorCount -eq 0){
-                    $HostData += [PSCustomObject]@{
-                        "Name"             = $VMHost.Name
-                        "ESXi"             = $VMHost.Version
-                        "Build"            = $VMHost.Build
-                        "Maintenance Mode" = $HostObjView.Runtime.InMaintenanceMode
-                        "Lockdown Mode"    = $HostObjView.Config.LockdownMode
-                        "Vendor"           = $HostObjView.Hardware.SystemInfo.Vendor
-                        "Model"            = $HostObjView.Hardware.SystemInfo.Model
-                        "Serial"           = $HostSerialNumber
-                        "CPU Count"        = $HostObjView.Hardware.CpuInfo.NumCpuPackages
-                        "Cores"            = $HostObjView.Hardware.CpuInfo.NumCpuCores
-                        "RAM"              = ("" + [math]::round($HostObjView.Hardware.MemorySize/1GB,0) + "GB")
-                        "BIOS"             = $HostObjView.Hardware.BiosInfo.BiosVersion
-                        "Days Up"          = New-TimeSpan -Start $VMHost.ExtensionData.Summary.Runtime.BootTime -End (Get-Date) | Select-Object -ExpandProperty Days
-                        "NTP Servers"      = $NTPServers -join ", "
-                        "DNS Servers"      = $VMHost.ExtensionData.Config.Network.DnsConfig.Address -join ", "
-                        "VMs"              = ($VMHost | Get-VM | Measure-Object).Count
-                        "Cluster"          = ($VMHost | Get-Cluster).Name
-                        "Datacenter"       = ($VMHost | Get-Datacenter).Name
-                        "vCenter Server"   = $VCServer
-                    }
-                }
-                Else{
-                    Write-Warning "Host error count equals $ErrorCount on host $($VMHost.Name)"
-                }
-                #endregion
+    #region Hosts
+    Try{
+        $VMHosts = Get-VMHost -Server $VCServer -ErrorAction Stop
+    }
+    Catch{
+        $VMHosts = $null
+        $vCenterError += [PSCustomObject]@{
+            "Object" = "vCenter"
+            "Name"   = $VCServer
+            "Error"  = "The Get-VMHost command failed on $VCServer"
+        }
+    }
 
-                #region Host NICs
-                    Try{
-                        $HostNICs = Get-VMHostNetworkAdapter -VMHost $VMHost.Name -Physical -ErrorAction Stop
-                    }
-                    Catch{
-                        $HostNICs = $null
-                        $vCenterError += [PSCustomObject]@{
-                            "Object" = "Host"
-                            "Name"   = $VMHost.Name
-                            "Error"  = "The Get-VMHostNetworkAdapter (Physical) command failed on $($VMHost.Name)"
-                        }
-                    }
+    If($VMHosts){
+        $HostCounter = 0
+        ForEach($VMHost in $VMHosts){
+            $ErrorCount = 0
+            $HostCounter ++
+            Write-Progress -Activity "vCenter server $VCServer" -Status "Gathering host information..." -CurrentOperation $VMHost.Name -PercentComplete ($HostCounter*100/($VMHosts | Measure-Object).Count)
 
-                    ForEach($HostNic in $HostNICs){
-                        $NetworkHint = $null
-                        $CDPExtended = $null
-                        $vSwitch = $null
-                        $vSwitchType = $null
-
-                        If($PCINIC){
-                            $PCINICProps = $PCINIC | Where-Object{$HostNic.Name -eq $_.Name}
-                        }
-                        Else{
-                            $PCINICProps = $null
-                        }
-
-                        $NetworkHint = $NetworkSystemView.QueryNetworkHint($HostNic.Name)
-                        $CDPExtended = $NetworkHint.ConnectedSwitchPort
-                        # Check if NIC is connected to distributed switch
-                        If($HostDistributedVirtualSwitches){
-                            $vSwitchType = "Distributed"
-                            ForEach($HostDVS in $HostDistributedVirtualSwitches){
-                                $DVSMatch = $null
-                                $DVSMatch = Get-VMHostNetworkAdapter -DistributedSwitch $HostDVS -VMHost $VMHost -Physical | Where-Object{$_.Name -eq $HostNic.Name}
-                                
-                                If($DVSMatch){
-                                    $vSwitch = $HostDVS
-                                    Break
-                                }
-                            }
-                        }
-                        
-                        # If no distributed switch detected, check for standard switch
-                        If($null -eq $vSwitch){
-                            $vSwitchType = "Standard"
-                            $vSwitch = $VMHost | Get-VirtualSwitch -Standard | Where-Object{$_.NIC -eq $HostNic.DeviceName}
-                        }
-
-                        If($null -eq $vSwitch){
-                            $vSwitchType = $null
-                        }
-
-                        $HostNicData += [PSCustomObject]@{
-                            "Host"         = $VMHost.Name
-                            "Name"         = $HostNic.Name
-                            "MAC"          = $HostNic.MAC
-                            "DHCP"         = $HostNic.DhcpEnabled
-                            "Link"         = $PCINICProps.Link
-                            "Speed"        = $PCINICProps.Speed
-                            "Duplex"       = $PCINICProps.Duplex
-                            "Vendor"       = $PCINICProps.Description
-                            "Driver"       = $PCINICProps.Driver
-                            "vSwitch"      = $vSwitch.Name
-                            "vSwitch Type" = $vSwitchType
-                            "Switch"       = $CDPExtended.DevID
-                            "Switch IP"    = $CDPExtended.Address
-                            "Switch Port"  = $CDPExtended.PortID
-                            "Cluster"      = ($VMHost | Get-Cluster).Name
-                            "Datacenter"   = ($VMHost | Get-Datacenter).Name
-                        }
-                    }
-                    #endregion
-
-                    #region VMKernel Adapters
-                    Try{
-                        $HostVMKs = Get-VMHostNetworkAdapter -VMHost $VMHost.Name -VMKernel -ErrorAction Stop | Select-Object Name,DeviceName,Mac,IP,DhcpEnabled,SubnetMask,MTU,PortGroupName,VMotionEnabled
-                    }
-                    Catch{
-                        $HostVMKs = $null
-                        $vCenterError += [PSCustomObject]@{
-                            "Object" = "Host"
-                            "Name"   = $VMHost.Name
-                            "Error"  = "The Get-VMHostNetworkAdapter (VMKernel) command failed on $($VMHost.Name)"
-                        }
-                    }
-
-                    ForEach($HostVMK in $HostVMKs){
-                        $HostVMKData += [PSCustomObject]@{
-                            "Host"        = $VMHost.Name
-                            "Name"        = $HostVMK.Name
-                            "Device"      = $HostVMK.DeviceName
-                            "IP"          = $HostVMK.IP
-                            "Subnet Mask" = $HostVMK.SubnetMask
-                            "MAC"         = $HostVMK.MAC
-                            "DHCP"        = $HostVMK.DhcpEnabled
-                            "MTU"         = $HostVMK.Mtu
-                            "Port Group"  = $HostVMK.PortGroupName
-                            "vMotion"     = $HostVMK.VMotionEnabled
-                            "Cluster"     = ($VMHost | Get-Cluster).Name
-                            "Datacenter"  = ($VMHost | Get-Datacenter).Name
-                        }
-                    }
-                    #endregion
+            Try{
+                $HostObjView = $VMHost | Get-View -ErrorAction Stop
+            }
+            Catch{
+                $HostObjView = $null
+                $ErrorCount ++
+                $vCenterError += [PSCustomObject]@{
+                    "Object" = "Host"
+                    "Name"   = $VMHost.Name
+                    "Error"  = "The Get-View command failed on host $($VMHost.Name)"
                 }
             }
 
-        #region VMs
-        Try{
-            $VMachines = Get-VM -Server $VCServer -ErrorAction Stop
-        }
-        Catch{
-            $VMachines = $null
-        }
-
-        If($VMachines){
-            ForEach($VMachine in $VMachines){
-                $VMConnectionState = $VMachine.ExtensionData.Summary.Runtime.ConnectionState
-                Try{
-                    $VMProps = Get-VM -Name $VMachine.Name | Get-View -ErrorAction Stop
-                }
-                Catch{
-                    $VMProps = $null
-                    $vCenterError += [PSCustomObject]@{
-                        "Object" = "Virtual Machine"
-                        "Name"   = $VMachine.Name
-                        "Error"  = "The Get-VM command failed on $($VMachine.Name)"
-                    }
-                }
-                
-                Try{
-                    $VMNotes = $VMachine | Select-Object -ExpandProperty Notes -ErrorAction Stop
-                }
-                Catch{
-                    $VMNotes = $null
-                }
-                
-                Try{
-                    $VMNicProps = Get-NetworkAdapter -VM $VMachine.Name -ErrorAction Stop
-                }
-                Catch{
-                    $VMNicProps = $null
-                    $vCenterError += [PSCustomObject]@{
-                        "Object" = "Virtual Machine"
-                        "Name"   = $VMachine.Name
-                        "Error"  = "The Get-NetworkAdapter command failed on $($VMachine.Name)"
-                    }
-                }
-                
-                Try{
-                    $VMHardDiskProps = Get-HardDisk -VM $VMachine.Name -ErrorAction Stop
-                }
-                Catch{
-                    $VMHardDiskProps = $null
-                    $vCenterError += [PSCustomObject]@{
-                        "Object" = "Virtual Machine"
-                        "Name"   = $VMachine.Name
-                        "Error"  = "The Get-HardDisk command failed on $($VMachine.Name)"
-                    }
-                }
-                
-                Try{
-                    $VSnapshots = $VMachine | Get-Snapshot -ErrorAction Stop
-                }
-                Catch{
-                    $VSnapshots = $null
-                }
-                
-                Try{
-                    $VMHostServer = Get-VMHost -VM $VMachine.Name -ErrorAction Stop
-                }
-                Catch{
-                    $VMHostServer = $null
-                    $vCenterError += [PSCustomObject]@{
-                        "Object" = "Virtual Machine"
-                        "Error"  = "The Get-VMHost command failed on $($VMachine.Name)"
-                    }
-                }
-
-                Try{
-                    $VMCluster = Get-Cluster -VM $VMachine.Name -ErrorAction Stop
-                }
-                Catch{
-                    $VMCluster = $null
-                }
-                
-                Try{
-                    $VMDatacenter = Get-Datacenter -VM $VMachine.Name -ErrorAction Stop
-                }
-                Catch{
-                    $VMDatacenter = $null
-                }
-
-                $EncryptedProps = $VMProps.ExtensionData.Config.KeyId
-                If($null -eq $EncryptedProps){
-                    $EncryptedVM = $False
-                }
-                Else{
-                    $EncryptedVM = $EncryptedProps.KeyId
-                }
-
-                $VMData += [PSCustomObject]@{
-                    "Name"             = $VMachine.Name                                     # Column A
-                    "OS"               = $VMProps.Summary.Config.GuestFullName              # Column B
-                    "OS Family"        = $VMProps.Guest.GuestFamily                         # Column C
-                    "Tools Version"    = $VMProps.Guest.ToolsVersion                        # Column D
-                    "Tools Status"     = $VMProps.Guest.ToolsVersionStatus                  # Column E
-                    "Tools Policy"     = $VMProps.Config.Tools.ToolsUpgradePolicy           # Column F
-                    "HardwareVer"      = $VMachine.HardwareVersion                          # Column G
-                    "Key ID"           = $EncryptedVM                                       # Column H
-                    "State"            = $VMachine.PowerState                               # Column I
-                    "IP"               = $VMProps.Guest.IPAddress -join ", "                # Column J
-                    "CPUs"             = $VMachine.NumCpu                                   # Column K
-                    "RAM"              = ("" + [math]::round($VMachine.MemoryGB) + "GB")    # Column L
-                    "NICs"             = ($VMNicProps | Measure-Object).Count               # Column M
-                    "Disks"            = ($VMHardDiskProps | Measure-Object).Count          # Column N
-                    "Used Raw"         = $VMachine.UsedSpaceGB*1GB                          # Column O
-                    "Used Space"       = Get-Size ($VMachine.UsedSpaceGB*1GB)               # Column P
-                    "Snapshots"        = ($VSnapshots | Measure-Object).Count               # Column Q
-                    "Consolidate"      = $VMachine.ExtensionData.Runtime.ConsolidationNeeded# Column R
-                    "Folder"           = $VMProps.Folder.Name                               # Column S
-                    "Host"             = $VMHostServer.Name                                 # Column T
-                    "Cluster"          = $VMCluster.Name                                    # Column U
-                    "Datacenter"       = $VMDatacenter.Name                                 # Column V
-                    "Notes"            = $VMNotes                                           # Column W
-                    "VM Path"          = $VMachine.ExtensionData.Config.Files.VmPathName    # Column X
-                    "Connection State" = $VMConnectionState                                 # Column Y
-                }
-                #endregion
-
-                #region VM NICs
-                ForEach($VNic in $VMNicProps){
-                    $VMNicData += [PSCustomObject]@{
-                        "VM"             = $VMachine.Name
-                        "NIC"            = $VNic.Name
-                        "Type"           = $VNic.Type
-                        "Connected"      = $VNic.ConnectionState.Connected
-                        "ConnectAtStart" = $VNic.ConnectionState.StartConnected
-                        "Network"        = $VNic.NetworkName
-                        "MAC"            = $VNic.MacAddress
-                    }
-                }
-                #endregion
-
-                # region VM Snapshots
-                If($VSnapshots){
-                    ForEach($VSnapshot in $VSnapshots){
-                        $SnapshotData += [PSCustomObject]@{
-                            "VM"             = $VMachine.Name
-                            "Snapshot"       = $VSnapshot.Name
-                            "Created"        = $VSnapshot.Created
-                            "VM State"       = $VMachine.PowerState
-                            "Snapshot State" = $VSnapshot.PowerState
-                            "Description"    = $VSnapshot.Description
-                        }
-                    }
-                }
-                #endregion
-
-                #region VM Hard Disk
-                ForEach($VMHardDisk in $VMHardDiskProps){
-                    $VMDKUsedSize = $null
-                    Try{
-                        $VMDKRawUsedSize = ($VMachine.ExtensionData.LayoutEx.file | Where-Object{$_.Name -contains $VMHardDisk.FileName.replace(".vmdk","-flat.vmdk")} -ErrorAction Stop).Size
-                    }
-                    Catch{
-                        $VMDKRawUsedSize = $null
-                    }
-                    If($VMDKRawUsedSize){
-                        $VMDKUsedSize = Get-Size $VMDKRawUsedSize
-                    }
-                    Else{
-                        $VMDKUsedSize = "N/A"
-                    }
-                    If($VMHardDisk.CapacityGB){
-                        $VMDKRawCapacity = $VMHardDisk.CapacityGB*1GB
-                        $VMDKCapacity = Get-Size $VMDKRawCapacity
-                    }
-                    Else{
-                        $VMDKRawCapacity = "N/A"
-                        $VMDKCapacity = "N/A"
-                    }
-
-                    $VMHardDiskData += [PSCustomObject]@{
-                        "VM"           = $VMachine.Name
-                        "Disk"         = $VMHardDisk.Name
-                        "Raw Capacity" = $VMDKRawCapacity
-                        "Capacity"     = $VMDKCapacity
-                        "Raw Used"     = $VMDKRawUsedSize
-                        "Used"         = $VMDKUsedSize
-                        "Persistence"  = $VMHardDisk.Persistence
-                        "Format"       = $VMHardDisk.StorageFormat
-                        "Type"         = $VMHardDisk.DiskType
-                        "Datastore"    = ($VMHardDisk.Filename).Split("]")[0].Split("[")[1]
-                        "File Name"    = $VMHardDisk.FileName
-                    }
-                }
-
-                ForEach($VMDrive in $VMProps.Guest.Disks){
-                    $VMDriveData += [PSCustomObject]@{
-                        "VM"           = $VMachine.Name
-                        "Path"         = $VMDrive.Path
-                        "Raw Capacity" = $VMDrive.Capacity
-                        "Capacity"     = Get-Size $VMDrive.Capacity
-                        "Raw Free"     = $VMDrive.FreeSpace
-                        "Free"         = Get-Size $VMDrive.FreeSpace
-                        "Raw Used"     = $VMDrive.Capacity - $VMDrive.FreeSpace
-                        "Used"         = Get-Size ($VMDrive.Capacity - $VMDrive.FreeSpace)
-                    }
+            Try{
+                $NTPServers =  Get-VMHostNtpServer -VMHost $VMHost.Name -ErrorAction Stop
+            }
+            Catch{
+                $NTPServers = "Error"
+                $ErrorCount ++
+                $vCenterError += [PSCustomObject]@{
+                    "Object" = "Host"
+                    "Name"   = $VMHost.Name
+                    "Error"  = "The Get-VMHostNtpServer command failed on host $($VMHost.Name)"
                 }
             }
-        }
-        #endregion
 
-        #region Datastores
-        Try{
-            $VDatastores = Get-Datastore -Server $VCServer -ErrorAction Stop
-        }
-        Catch{
-            $VDatastores = $null
-            $vCenterError += [PSCustomObject]@{
-                "Object" = "Datastore"
-                "Name"   = $VCServer
-                "Error"  = "The Get-Datastore command failed on $VCServer"
-            }
-         }
-
-        ForEach($VDatastore in $VDatastores){
-            If($VDatastore.CapacityGB -eq 0){
-                $DatastorePctFree = 0
+            If($HostObjView.Hardware.SystemInfo.OtherIdentifyingInfo){
+                    $HostSerialNumber = $HostObjView.Hardware.SystemInfo.OtherIdentifyingInfo[1].IdentifierValue
             }
             Else{
-                $DatastorePctFree = [math]::Round((($VDatastore.FreeSpaceGB/$VDatastore.CapacityGB)*100),2)
+                $HostSerialNumber = "N/A"
             }
-            $DatastoresData += [PSCustomObject]@{
-                "Store"      = $VDatastore.Name
-                "CapacityGB" = [math]::Round($VDatastore.CapacityGB,2)
-                "FreeGB"     = [math]::Round($VDatastore.FreeSpaceGB,2)
-                "% Free"     = $DatastorePctFree
-                "Type"       = $VDatastore.Type
-                "FSVer"      = $VDatastore.FilesystemVersion
-                "Folder"     = $VDatastore.ParentFolder
-                "State"      = $VDatastore.State
-                "Datacenter" = $VDatastore.Datacenter
-                "vCenter"    = $VCServer
-                "Path"       = $VDatastore.DatastoreBrowserPath
+
+            Try{
+                $ESXCli = Get-EsxCli -VMHost $VMHost.Name -V2 -ErrorAction Stop
+            }
+            Catch{
+                $ESXCli = $null
+            }
+
+            If($ESXCli){
+                $PCINIC = $ESXCli.Network.NIC.List.Invoke()
+            }
+            Else{
+                $PCINIC = $null
+            }
+
+            $NetworkSystem = $HostObjView.ConfigManager.NetworkSystem
+            $NetworkSystemView = Get-View $NetworkSystem
+            Try{
+                $HostDistributedVirtualSwitches = Get-VDSwitch -VMHost $VMHost.Name -ErrorAction Stop
+            }
+            Catch{
+                $HostDistributedVirtualSwitches = $null
+            }
+
+            If($ErrorCount -eq 0){
+                $HostData += [PSCustomObject]@{
+                    "Name"             = $VMHost.Name
+                    "ESXi"             = $VMHost.Version
+                    "Build"            = $VMHost.Build
+                    "Maintenance Mode" = $HostObjView.Runtime.InMaintenanceMode
+                    "Lockdown Mode"    = $HostObjView.Config.LockdownMode
+                    "Vendor"           = $HostObjView.Hardware.SystemInfo.Vendor
+                    "Model"            = $HostObjView.Hardware.SystemInfo.Model
+                    "Serial"           = $HostSerialNumber
+                    "Processor Type"   = $VMHost.ProcessorType
+                    "CPU Count"        = $HostObjView.Hardware.CpuInfo.NumCpuPackages
+                    "Cores"            = $HostObjView.Hardware.CpuInfo.NumCpuCores
+                    "RAM"              = ("" + [math]::round($HostObjView.Hardware.MemorySize/1GB,0) + "GB")
+                    "BIOS"             = $HostObjView.Hardware.BiosInfo.BiosVersion
+                    "Days Up"          = New-TimeSpan -Start $VMHost.ExtensionData.Summary.Runtime.BootTime -End (Get-Date) | Select-Object -ExpandProperty Days
+                    "NTP Servers"      = $NTPServers -join ", "
+                    "DNS Servers"      = $VMHost.ExtensionData.Config.Network.DnsConfig.Address -join ", "
+                    "VMs"              = ($VMHost | Get-VM | Measure-Object).Count
+                    "Cluster"          = ($VMHost | Get-Cluster).Name
+                    "Datacenter"       = ($VMHost | Get-Datacenter).Name
+                    "vCenter Server"   = $VCServer
+                }
+            }
+            Else{
+                Write-Warning "Host error count equals $ErrorCount on host $($VMHost.Name)"
+            }
+            #endregion
+
+            #region Host NICs
+            Try{
+                $HostNICs = Get-VMHostNetworkAdapter -VMHost $VMHost.Name -Physical -ErrorAction Stop
+            }
+            Catch{
+                $HostNICs = $null
+                $vCenterError += [PSCustomObject]@{
+                    "Object" = "Host"
+                    "Name"   = $VMHost.Name
+                    "Error"  = "The Get-VMHostNetworkAdapter (Physical) command failed on $($VMHost.Name)"
+                }
+            }
+
+            ForEach($HostNic in $HostNICs){
+                $NetworkHint = $null
+                $CDPExtended = $null
+                $vSwitch = $null
+                $vSwitchType = $null
+
+                If($PCINIC){
+                    $PCINICProps = $PCINIC | Where-Object{$HostNic.Name -eq $_.Name}
+                }
+                Else{
+                    $PCINICProps = $null
+                }
+
+                $NetworkHint = $NetworkSystemView.QueryNetworkHint($HostNic.Name)
+                $CDPExtended = $NetworkHint.ConnectedSwitchPort
+                # Check if NIC is connected to distributed switch
+                If($HostDistributedVirtualSwitches){
+                    $vSwitchType = "Distributed"
+                    ForEach($HostDVS in $HostDistributedVirtualSwitches){
+                        $DVSMatch = $null
+                        $DVSMatch = Get-VMHostNetworkAdapter -DistributedSwitch $HostDVS -VMHost $VMHost -Physical | Where-Object{$_.Name -eq $HostNic.Name}
+
+                        If($DVSMatch){
+                            $vSwitch = $HostDVS
+                            Break
+                        }
+                    }
+                }
+
+                # If no distributed switch detected, check for standard switch
+                If($null -eq $vSwitch){
+                    $vSwitchType = "Standard"
+                    $vSwitch = $VMHost | Get-VirtualSwitch -Standard | Where-Object{$_.NIC -eq $HostNic.DeviceName}
+                }
+
+                If($null -eq $vSwitch){
+                    $vSwitchType = $null
+                }
+
+                $HostNicData += [PSCustomObject]@{
+                    "Host"         = $VMHost.Name
+                    "Name"         = $HostNic.Name
+                    "MAC"          = $HostNic.MAC
+                    "DHCP"         = $HostNic.DhcpEnabled
+                    "Link"         = $PCINICProps.Link
+                    "Speed"        = $PCINICProps.Speed
+                    "Duplex"       = $PCINICProps.Duplex
+                    "Vendor"       = $PCINICProps.Description
+                    "Driver"       = $PCINICProps.Driver
+                    "vSwitch"      = $vSwitch.Name
+                    "vSwitch Type" = $vSwitchType
+                    "Switch"       = $CDPExtended.DevID
+                    "Switch IP"    = $CDPExtended.Address
+                    "Switch Port"  = $CDPExtended.PortID
+                    "Cluster"      = ($VMHost | Get-Cluster).Name
+                    "Datacenter"   = ($VMHost | Get-Datacenter).Name
+                }
+            }
+            #endregion
+
+            #region VMKernel Adapters
+            Try{
+                $HostVMKs = Get-VMHostNetworkAdapter -VMHost $VMHost.Name -VMKernel -ErrorAction Stop | Select-Object Name,DeviceName,Mac,IP,DhcpEnabled,SubnetMask,MTU,PortGroupName,VMotionEnabled
+            }
+            Catch{
+                $HostVMKs = $null
+                $vCenterError += [PSCustomObject]@{
+                    "Object" = "Host"
+                    "Name"   = $VMHost.Name
+                    "Error"  = "The Get-VMHostNetworkAdapter (VMKernel) command failed on $($VMHost.Name)"
+                }
+            }
+
+            ForEach($HostVMK in $HostVMKs){
+                $HostVMKData += [PSCustomObject]@{
+                    "Host"        = $VMHost.Name
+                    "Name"        = $HostVMK.Name
+                    "Device"      = $HostVMK.DeviceName
+                    "IP"          = $HostVMK.IP
+                    "Subnet Mask" = $HostVMK.SubnetMask
+                    "MAC"         = $HostVMK.MAC
+                    "DHCP"        = $HostVMK.DhcpEnabled
+                    "MTU"         = $HostVMK.Mtu
+                    "Port Group"  = $HostVMK.PortGroupName
+                    "vMotion"     = $HostVMK.VMotionEnabled
+                    "Cluster"     = ($VMHost | Get-Cluster).Name
+                    "Datacenter"  = ($VMHost | Get-Datacenter).Name
+                }
+            }
+            #endregion
+        }
+    }
+
+    #region VMs
+    Try{
+        $VMachines = Get-VM -Server $VCServer -ErrorAction Stop
+    }
+    Catch{
+        $VMachines = $null
+    }
+
+    If($VMachines){
+        $VMCounter = 0
+        ForEach($VMachine in $VMachines){
+            $VMCounter ++
+            Write-Progress -Activity "vCenter server $VCServer" -Status "Gathering virtual machine information..." -CurrentOperation $VMachine.Name -PercentComplete ($VMCounter*100/($VMachines | Measure-Object).Count)
+            $VMConnectionState = $VMachine.ExtensionData.Summary.Runtime.ConnectionState
+            Try{
+                $VMProps = Get-VM -Name $VMachine.Name | Get-View -ErrorAction Stop
+            }
+            Catch{
+                $VMProps = $null
+                $vCenterError += [PSCustomObject]@{
+                    "Object" = "Virtual Machine"
+                    "Name"   = $VMachine.Name
+                    "Error"  = "The Get-VM command failed on $($VMachine.Name)"
+                }
+            }
+
+            Try{
+                $VMNotes = $VMachine | Select-Object -ExpandProperty Notes -ErrorAction Stop
+            }
+            Catch{
+                $VMNotes = $null
+            }
+
+            Try{
+                $VMNicProps = Get-NetworkAdapter -VM $VMachine.Name -ErrorAction Stop
+            }
+            Catch{
+                $VMNicProps = $null
+                $vCenterError += [PSCustomObject]@{
+                    "Object" = "Virtual Machine"
+                    "Name"   = $VMachine.Name
+                    "Error"  = "The Get-NetworkAdapter command failed on $($VMachine.Name)"
+                }
+            }
+
+            Try{
+                $VMHardDiskProps = Get-HardDisk -VM $VMachine.Name -ErrorAction Stop
+            }
+            Catch{
+                $VMHardDiskProps = $null
+                $vCenterError += [PSCustomObject]@{
+                    "Object" = "Virtual Machine"
+                    "Name"   = $VMachine.Name
+                    "Error"  = "The Get-HardDisk command failed on $($VMachine.Name)"
+                }
+            }
+
+            Try{
+                $VSnapshots = $VMachine | Get-Snapshot -ErrorAction Stop
+            }
+            Catch{
+                $VSnapshots = $null
+            }
+
+            Try{
+                $VMHostServer = Get-VMHost -VM $VMachine.Name -ErrorAction Stop
+            }
+            Catch{
+                $VMHostServer = $null
+                $vCenterError += [PSCustomObject]@{
+                    "Object" = "Virtual Machine"
+                    "Error"  = "The Get-VMHost command failed on $($VMachine.Name)"
+                }
+            }
+
+            Try{
+                $VMCluster = Get-Cluster -VM $VMachine.Name -ErrorAction Stop
+            }
+            Catch{
+                $VMCluster = $null
+            }
+
+            Try{
+                $VMDatacenter = Get-Datacenter -VM $VMachine.Name -ErrorAction Stop
+            }
+            Catch{
+                $VMDatacenter = $null
+            }
+
+            $EncryptedProps = $VMProps.ExtensionData.Config.KeyId
+            If($null -eq $EncryptedProps){
+                $EncryptedVM = $False
+            }
+            Else{
+                $EncryptedVM = $EncryptedProps.KeyId
+            }
+
+            $VMData += [PSCustomObject]@{
+                "Name"             = $VMachine.Name                                     # Column A
+                "OS"               = $VMProps.Summary.Config.GuestFullName              # Column B
+                "OS Family"        = $VMProps.Guest.GuestFamily                         # Column C
+                "Tools Version"    = $VMProps.Guest.ToolsVersion                        # Column D
+                "Tools Status"     = $VMProps.Guest.ToolsVersionStatus                  # Column E
+                "Tools Policy"     = $VMProps.Config.Tools.ToolsUpgradePolicy           # Column F
+                "HardwareVer"      = $VMachine.HardwareVersion                          # Column G
+                "Key ID"           = $EncryptedVM                                       # Column H
+                "State"            = $VMachine.PowerState                               # Column I
+                "IP"               = $VMProps.Guest.IPAddress -join ", "                # Column J
+                "CPUs"             = $VMachine.NumCpu                                   # Column K
+                "RAM"              = ("" + [math]::round($VMachine.MemoryGB) + "GB")    # Column L
+                "NICs"             = ($VMNicProps | Measure-Object).Count               # Column M
+                "Disks"            = ($VMHardDiskProps | Measure-Object).Count          # Column N
+                "Used Raw"         = $VMachine.UsedSpaceGB*1GB                          # Column O
+                "Used Space"       = Get-Size ($VMachine.UsedSpaceGB*1GB)               # Column P
+                "Snapshots"        = ($VSnapshots | Measure-Object).Count               # Column Q
+                "Consolidate"      = $VMachine.ExtensionData.Runtime.ConsolidationNeeded# Column R
+                "Folder"           = $VMProps.Folder.Name                               # Column S
+                "Host"             = $VMHostServer.Name                                 # Column T
+                "Cluster"          = $VMCluster.Name                                    # Column U
+                "Datacenter"       = $VMDatacenter.Name                                 # Column V
+                "Notes"            = $VMNotes                                           # Column W
+                "VM Path"          = $VMachine.ExtensionData.Config.Files.VmPathName    # Column X
+                "Connection State" = $VMConnectionState                                 # Column Y
+            }
+            #endregion
+
+            #region VM NICs
+            ForEach($VNic in $VMNicProps){
+                $VMNicData += [PSCustomObject]@{
+                    "VM"             = $VMachine.Name
+                    "NIC"            = $VNic.Name
+                    "Type"           = $VNic.Type
+                    "Connected"      = $VNic.ConnectionState.Connected
+                    "ConnectAtStart" = $VNic.ConnectionState.StartConnected
+                    "Network"        = $VNic.NetworkName
+                    "MAC"            = $VNic.MacAddress
+                }
+            }
+            #endregion
+
+            # region VM Snapshots
+            If($VSnapshots){
+                ForEach($VSnapshot in $VSnapshots){
+                    $SnapshotData += [PSCustomObject]@{
+                        "VM"             = $VMachine.Name
+                        "Snapshot"       = $VSnapshot.Name
+                        "Created"        = $VSnapshot.Created
+                        "VM State"       = $VMachine.PowerState
+                        "Snapshot State" = $VSnapshot.PowerState
+                        "Description"    = $VSnapshot.Description
+                    }
+                }
+            }
+            #endregion
+
+            #region VM Hard Disk
+            ForEach($VMHardDisk in $VMHardDiskProps){
+                $VMDKUsedSize = $null
+                Try{
+                    $VMDKRawUsedSize = ($VMachine.ExtensionData.LayoutEx.file | Where-Object{$_.Name -contains $VMHardDisk.FileName.replace(".vmdk","-flat.vmdk")} -ErrorAction Stop).Size
+                }
+                Catch{
+                    $VMDKRawUsedSize = $null
+                }
+                If($VMDKRawUsedSize){
+                    $VMDKUsedSize = Get-Size $VMDKRawUsedSize
+                }
+                Else{
+                    $VMDKUsedSize = "N/A"
+                }
+                If($VMHardDisk.CapacityGB){
+                    $VMDKRawCapacity = $VMHardDisk.CapacityGB*1GB
+                    $VMDKCapacity = Get-Size $VMDKRawCapacity
+                }
+                Else{
+                    $VMDKRawCapacity = "N/A"
+                    $VMDKCapacity = "N/A"
+                }
+
+                $VMHardDiskData += [PSCustomObject]@{
+                    "VM"           = $VMachine.Name
+                    "Disk"         = $VMHardDisk.Name
+                    "Raw Capacity" = $VMDKRawCapacity
+                    "Capacity"     = $VMDKCapacity
+                    "Raw Used"     = $VMDKRawUsedSize
+                    "Used"         = $VMDKUsedSize
+                    "Persistence"  = $VMHardDisk.Persistence
+                    "Format"       = $VMHardDisk.StorageFormat
+                    "Type"         = $VMHardDisk.DiskType
+                    "Datastore"    = ($VMHardDisk.Filename).Split("]")[0].Split("[")[1]
+                    "File Name"    = $VMHardDisk.FileName
+                }
+            }
+
+            ForEach($VMDrive in $VMProps.Guest.Disks){
+                $VMDriveData += [PSCustomObject]@{
+                    "VM"           = $VMachine.Name
+                    "Path"         = $VMDrive.Path
+                    "Raw Capacity" = $VMDrive.Capacity
+                    "Capacity"     = Get-Size $VMDrive.Capacity
+                    "Raw Free"     = $VMDrive.FreeSpace
+                    "Free"         = Get-Size $VMDrive.FreeSpace
+                    "Raw Used"     = $VMDrive.Capacity - $VMDrive.FreeSpace
+                    "Used"         = Get-Size ($VMDrive.Capacity - $VMDrive.FreeSpace)
+                }
             }
         }
-        #endregion
+    }
+    #endregion
+
+    #region Datastores
+    Try{
+        $VDatastores = Get-Datastore -Server $VCServer -ErrorAction Stop
+        Write-Progress -Activity "vCenter server $VCServer" -Status "Gathering Datastore information..."
+    }
+    Catch{
+        $VDatastores = $null
+        $vCenterError += [PSCustomObject]@{
+            "Object" = "Datastore"
+            "Name"   = $VCServer
+            "Error"  = "The Get-Datastore command failed on $VCServer"
+        }
+     }
+
+    ForEach($VDatastore in $VDatastores){
+        If($VDatastore.CapacityGB -eq 0){
+            $DatastorePctFree = 0
+        }
+        Else{
+            $DatastorePctFree = [math]::Round((($VDatastore.FreeSpaceGB/$VDatastore.CapacityGB)*100),2)
+        }
+        $DatastoresData += [PSCustomObject]@{
+            "Store"      = $VDatastore.Name
+            "CapacityGB" = [math]::Round($VDatastore.CapacityGB,2)
+            "FreeGB"     = [math]::Round($VDatastore.FreeSpaceGB,2)
+            "% Free"     = $DatastorePctFree
+            "Type"       = $VDatastore.Type
+            "FSVer"      = $VDatastore.FilesystemVersion
+            "Folder"     = $VDatastore.ParentFolder
+            "State"      = $VDatastore.State
+            "Datacenter" = $VDatastore.Datacenter
+            "vCenter"    = $VCServer
+            "Path"       = $VDatastore.DatastoreBrowserPath
+        }
+    }
+    #endregion
 
         Disconnect-VIServer -Server $VCServer -Confirm:$False
-    }
 }
+
+Write-Progress -Activity "vCenter server $VCServer" -Completed
 
 #region Output to Excel
 # Create Excel standard configuration properties
@@ -826,7 +838,7 @@ If($HostDataLastRow -gt 1){
     $HostDataHeaderRow   = "Hosts!`$A`$1:`$$HostDataHeaderCount`$1"
     $MMColumn            = "Hosts!`$D`$2:`$D`$$HostDataLastRow"
     $LockdownColumn      = "Hosts!`$E`$2:`$E`$$HostDataLastRow"
-    $NTPColumn           = "Hosts!`$N`$2:`$N`$$HostDataLastRow"
+    $NTPColumn           = "Hosts!`$O`$2:`$O`$$HostDataLastRow"
 
     $HostDataStyle = New-ExcelStyle -Range $HostDataHeaderRow -HorizontalAlignment Center
 
