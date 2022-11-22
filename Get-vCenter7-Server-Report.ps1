@@ -134,6 +134,7 @@ $VMHardDiskData = @()
 $DatastoresData = @()
 $SnapshotData = @()
 $LicenseDataCounter = 0
+$VCServerCounter = 0
 #endregion
 
 #region Credentials
@@ -155,7 +156,8 @@ Else{
 
 # Connect to vCenters and retrieve data
 ForEach($VCServer in $VCServers){
-    Write-Progress -Activity "vCenter server $VCServer" -Status "Connecting to vCenter server"
+$VCServerCounter ++
+    Write-Progress -Activity "vCenter server $VCServer" -Status ("Connecting to vCenter server " + $VCServerCounter + " of " + (($VCServers |Measure-Object).Count) + ".")
     Set-PowerCLIConfiguration -InvalidCertificateAction Ignore -Confirm:$False
     Try{
         Connect-VIServer -Server $VCServer -Credential $Credentials
@@ -619,7 +621,7 @@ ForEach($VCServer in $VCServers){
                 "HardwareVer"      = $VMachine.HardwareVersion                          # Column G
                 "Key ID"           = $EncryptedVM                                       # Column H
                 "State"            = $VMachine.PowerState                               # Column I
-                "IP"               = $VMProps.Guest.IPAddress -join ", "                # Column J
+                "IP"               = $VMachine.Guest.IPAddress -join ", "               # Column J
                 "CPUs"             = $VMachine.NumCpu                                   # Column K
                 "RAM"              = ("" + [math]::round($VMachine.MemoryGB) + "GB")    # Column L
                 "NICs"             = ($VMNicProps | Measure-Object).Count               # Column M
