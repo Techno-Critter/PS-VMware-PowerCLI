@@ -121,6 +121,7 @@ $vCenterError = @()
 $vCenterObject = @()
 $DatacenterData = @()
 $ClusterData = @()
+$ClusterDRSData = @()
 $VCLicenseServers = @()
 $LicenseCustomObject = @()
 $AssignedLicenseObject = @()
@@ -226,6 +227,35 @@ $VCServerCounter ++
                 "AutoLevel"  = $VCluster.DrsAutomationLevel
                 "Hosts"      = (Get-VMHost -Location $VCluster.Name | Measure-Object).Count
                 "VMs"        = (Get-VM -Location $VCluster.Name | Measure-Object).Count
+            }
+            #endregion
+
+            #region ClusterRules
+            Try{
+                $ClusterDRSRules = Get-DrsRule -Cluster $VCluster.Name -ErrorAction Stop
+            }
+            Catch{
+                $ClusterDRSRules = $null
+            }
+            If($ClusterDRSRules){
+                ForEach($DRSRule in $ClusterDRSRules){
+                    $RuleMachineNames = @()
+                    If($DRSRule.VMIDs){
+                        $AppliedRuleMachines = $DRSRule.VMIDs
+                        ForEach($RuleMachine in $AppliedRuleMachines){
+                            $RuleMachineNames += Get-VM -Id $RuleMachine
+                        }
+                    }
+                    $ClusterDRSData += [PSCustomObject]@{
+                        "vCenter"    = $VCServer
+                        "Datacenter" = (Get-Datacenter -Cluster $VCluster).Name
+                        "Cluster"    = $VCluster.Name
+                        "Rule"       = $DRSRule.Name
+                        "Enabled"    = $DRSRule.Enabled
+                        "Type"       = $DRSRule.Type
+                        "Machines"   = $RuleMachineNames -join ", "
+                    }
+                }
             }
         }
     }
@@ -807,6 +837,17 @@ If($ClusterDataLastRow -gt 1){
     $ClusterDataStyle = New-ExcelStyle -Range $ClusterDataHeaderRow -HorizontalAlignment Center
 
     $ClusterData | Sort-Object "vCenter","Datacenter","Cluster" | Export-Excel @ExcelProps -WorkSheetname "Clusters" -Style $ClusterDataStyle
+}
+
+# Cluster DRS Rule sheet
+$ClusterDRSDataLastRow = ($ClusterDRSData | Measure-Object).Count + 1
+If($ClusterDRSDataLastRow -gt 1){
+    $ClusterDRSDataHeaderCount = Get-ColumnName ($ClusterDRSData | Get-Member | Where-Object{$_.MemberType -match "NoteProperty"} | Measure-Object).Count
+    $ClusterDRSDataHeaderRow = "'Cluster DRS'!`$A`$1:`$$ClusterDRSDataHeaderCount`$1"
+
+    $ClusterDRSDataStyle = New-ExcelStyle -Range $ClusterDRSDataHeaderRow -HorizontalAlignment Center
+
+    $ClusterDRSData | Sort-Object "vCenter", "Datacenter", "Cluster", "Rule" | Export-Excel @ExcelProps -WorkSheetname "Cluster DRS" -Style $ClusterDRSDataStyle
 }
 
 # Licensing sheet
