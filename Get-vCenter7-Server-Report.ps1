@@ -156,10 +156,10 @@ Else{
 #endregion
 
 # Connect to vCenters and retrieve data
+Set-PowerCLIConfiguration -InvalidCertificateAction Ignore -Confirm:$False
 ForEach($VCServer in $VCServers){
 $VCServerCounter ++
     Write-Progress -Activity "vCenter server $VCServer" -Status ("Connecting to vCenter server " + $VCServerCounter + " of " + (($VCServers |Measure-Object).Count) + ".")
-    Set-PowerCLIConfiguration -InvalidCertificateAction Ignore -Confirm:$False
     Try{
         Connect-VIServer -Server $VCServer -Credential $Credentials
     }
@@ -214,8 +214,8 @@ $VCServerCounter ++
         $VClusters = $null
     }
 
-    Write-Progress -Activity "vCenter server $VCServer" -Status "Gathering Cluster information..."
     If($VClusters){
+        Write-Progress -Activity "vCenter server $VCServer" -Status "Gathering Cluster information..."
         ForEach($VCluster in $VCLusters){
             $ClusterData += [PSCustomObject]@{
                 "Cluster"    = $VCluster.Name
@@ -231,6 +231,7 @@ $VCServerCounter ++
             #endregion
 
             #region ClusterRules
+            # DRS Affinity Rules
             Try{
                 $ClusterDRSRules = Get-DrsRule -Cluster $VCluster.Name -ErrorAction Stop
             }
@@ -238,6 +239,7 @@ $VCServerCounter ++
                 $ClusterDRSRules = $null
             }
             If($ClusterDRSRules){
+                Write-Progress -Activity "vCenter server $VCServer" -Status "Gathering DRS rules information..."
                 ForEach($DRSRule in $ClusterDRSRules){
                     $RuleMachineNames = @()
                     If($DRSRule.VMIDs){
@@ -253,7 +255,30 @@ $VCServerCounter ++
                         "Rule"       = $DRSRule.Name
                         "Enabled"    = $DRSRule.Enabled
                         "Type"       = $DRSRule.Type
-                        "Machines"   = $RuleMachineNames -join ", "
+                        "VMs"        = $RuleMachineNames -join ", "
+                        "Hosts"      = "N/A"
+                    }
+                }
+            }
+            # DRS VM/Host Rules
+            Try{
+                $ClusterDRSVMHostRules = Get-DrsVMHostRule -Cluster $VCluster.Name -ErrorAction Stop
+            }
+            Catch{
+                $ClusterDRSVMHostRules = $null
+            }
+            If($ClusterDRSVMHostRules){
+                Write-Progress -Activity "vCenter server $VCServer" -Status "Gather VM/Host rules information..."
+                ForEach($VMHostRule in $ClusterDRSVMHostRules){
+                    $ClusterDRSData += [PSCustomObject]@{
+                        "vCenter"    = $VCServer
+                        "Datacenter" = (Get-Datacenter -Cluster $VCluster).Name
+                        "Cluster"    = $VCluster.Name
+                        "Rule"       = $VMHostRule.Name
+                        "Enabled"    = $VMHostRule.Enabled
+                        "Type"       = $VMHostRule.Type
+                        "VMs"        = $VMHostRule.VMGroup.Member.Name -join ", "
+                        "Hosts"      = $VMHostRule.VMHostGroup.Member.Name -join ", "
                     }
                 }
             }
@@ -615,6 +640,7 @@ $VCServerCounter ++
                 $VMHostServer = $null
                 $vCenterError += [PSCustomObject]@{
                     "Object" = "Virtual Machine"
+                    "Name"   = $VMachine.Name
                     "Error"  = "The Get-VMHost command failed on $($VMachine.Name)"
                 }
             }
@@ -691,6 +717,8 @@ $VCServerCounter ++
                         "VM"             = $VMachine.Name
                         "Snapshot"       = $VSnapshot.Name
                         "Created"        = $VSnapshot.Created
+                        "Raw Size"       = ([int]$VSnapshot.SizeMB)*1MB
+                        "Size"           = Get-Size (([int]$VSnapshot.SizeMB)*1MB)
                         "VM State"       = $VMachine.PowerState
                         "Snapshot State" = $VSnapshot.PowerState
                         "Description"    = $VSnapshot.Description
@@ -898,10 +926,13 @@ $HostNicDataLastRow = ($HostNicData | Measure-Object).Count + 1
 If($HostNicDataLastRow -gt 1){
     $HostNicDataHeaderCount = Get-ColumnName ($HostNicData | Get-Member | Where-Object{$_.MemberType -match "NoteProperty"} | Measure-Object).Count
     $HostNicDataHeaderRow   = "'Host NICs'!`$A`$1:`$$HostNicDataHeaderCount`$1"
+    $HostNicDataLinkColumn  = "'Host NICs'!`$E`$2:`$E`$$HostNicDataLastRow"
 
     $HostNicDataStyle = New-ExcelStyle -Range $HostNicDataHeaderRow -HorizontalAlignment Center
+    
+    $HostNicDataConditionalFormatting = New-ConditionalText -Range $HostNicDataLinkColumn -ConditionalType ContainsText "Up" -ConditionalTextColor DarkGreen -BackgroundColor LightGreen
 
-    $HostNicData | Sort-Object "Host","Name" | Export-Excel @ExcelProps -WorkSheetname "Host NICs" -Style $HostNicDataStyle
+    $HostNicData | Sort-Object "Host","Name" | Export-Excel @ExcelProps -WorkSheetname "Host NICs" -Style $HostNicDataStyle -ConditionalFormat $HostNicDataConditionalFormatting
 }
 
 # Host VMK sheet
