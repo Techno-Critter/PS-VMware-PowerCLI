@@ -434,6 +434,15 @@ $VCServerCounter ++
                 $HostDistributedVirtualSwitches = $null
             }
 
+            $HostCertificate = $HostObjView.ConfigManager.CertificateManager
+            Try{
+                $HostCertificateView = Get-View $HostCertificate
+                $HostCertificateExpiration = $HostCertificateView.CertificateInfo.NotAfter
+            }
+            Catch{
+                $HostCertificateExpiration = $null
+            }
+
             If($ErrorCount -eq 0){
                 $HostData += [PSCustomObject]@{
                     "Name"             = $VMHost.Name
@@ -452,6 +461,7 @@ $VCServerCounter ++
                     "Days Up"          = New-TimeSpan -Start $VMHost.ExtensionData.Summary.Runtime.BootTime -End (Get-Date) | Select-Object -ExpandProperty Days
                     "NTP Servers"      = $NTPServers -join ", "
                     "DNS Servers"      = $VMHost.ExtensionData.Config.Network.DnsConfig.Address -join ", "
+                    "Cert Expires"     = $HostCertificateExpiration
                     "VMs"              = ($VMHost | Get-VM | Measure-Object).Count
                     "Cluster"          = ($VMHost | Get-Cluster).Name
                     "Datacenter"       = ($VMHost | Get-Datacenter).Name
