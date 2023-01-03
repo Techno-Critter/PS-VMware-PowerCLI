@@ -923,11 +923,11 @@ If($AssignedLicensesLastRow -gt 1){
 # Host sheet
 $HostDataLastRow = ($HostData | Measure-Object).Count + 1
 If($HostDataLastRow -gt 1){
-    $HostDataHeaderCount = Get-ColumnName ($HostData | Get-Member | Where-Object{$_.MemberType -match "NoteProperty"} | Measure-Object).Count
-    $HostDataHeaderRow   = "Hosts!`$A`$1:`$$HostDataHeaderCount`$1"
-    $MMColumn            = "Hosts!`$D`$2:`$D`$$HostDataLastRow"
-    $LockdownColumn      = "Hosts!`$E`$2:`$E`$$HostDataLastRow"
-    $NTPColumn           = "Hosts!`$O`$2:`$O`$$HostDataLastRow"
+    $HostDataHeaderCount   = Get-ColumnName ($HostData | Get-Member | Where-Object{$_.MemberType -match "NoteProperty"} | Measure-Object).Count
+    $HostDataHeaderRow     = "Hosts!`$A`$1:`$$HostDataHeaderCount`$1"
+    $MMColumn              = "Hosts!`$D`$2:`$D`$$HostDataLastRow"
+    $LockdownColumn        = "Hosts!`$E`$2:`$E`$$HostDataLastRow"
+    $NTPColumn             = "Hosts!`$O`$2:`$O`$$HostDataLastRow"
     $DaysCertExpiresColumn = "Hosts!`$R`$2:`$R`$$HostDataLastRow"
 
     $HostDataStyle = New-ExcelStyle -Range $HostDataHeaderRow -HorizontalAlignment Center
@@ -936,8 +936,8 @@ If($HostDataLastRow -gt 1){
     $HostDataConditionalFormatting += New-ConditionalText -Range $MMColumn -ConditionalType ContainsText "TRUE" -ConditionalTextColor Brown -BackgroundColor Yellow
     $HostDataConditionalFormatting += New-ConditionalText -Range $LockdownColumn -ConditionalType ContainsText "lockdownDisabled" -ConditionalTextColor Brown -BackgroundColor Yellow
     $HostDataConditionalFormatting += New-ConditionalText -Range $NTPColumn -ConditionalType ContainsBlanks -BackgroundColor Yellow
-    $HostDataConditionalFormatting += New-ConditionalText -Range $DaysCertExpiresColumn -ConditionalType LessThanOrEqual '60' -ConditionalTextColor Brown -BackgroundColor Yellow
     $HostDataConditionalFormatting += New-ConditionalText -Range $DaysCertExpiresColumn -ConditionalType LessThanOrEqual '30' -ConditionalTextColor Maroon -BackgroundColor Pink
+    $HostDataConditionalFormatting += New-ConditionalText -Range $DaysCertExpiresColumn -ConditionalType LessThanOrEqual '60' -ConditionalTextColor Brown -BackgroundColor Yellow
 
     $HostData | Sort-Object "vCenter Server","Datacenter","Cluster","Name" | Export-Excel @ExcelProps -WorkSheetname "Hosts" -Style $HostDataStyle -ConditionalText $HostDataConditionalFormatting
 }
