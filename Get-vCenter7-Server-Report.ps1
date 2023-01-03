@@ -436,11 +436,18 @@ $VCServerCounter ++
 
             $HostCertificate = $HostObjView.ConfigManager.CertificateManager
             Try{
-                $HostCertificateView = Get-View $HostCertificate
+                $HostCertificateView = Get-View $HostCertificate -ErrorAction Stop
                 $HostCertificateExpiration = $HostCertificateView.CertificateInfo.NotAfter
             }
             Catch{
                 $HostCertificateExpiration = $null
+            }
+
+            If($HostCertificateExpiration){
+                $HostCertExpireInDays = ($HostCertificateExpiration - (Get-Date)).Days
+            }
+            Else{
+                $HostCertExpireInDays = $null
             }
 
             If($ErrorCount -eq 0){
@@ -462,6 +469,7 @@ $VCServerCounter ++
                     "NTP Servers"      = $NTPServers -join ", "
                     "DNS Servers"      = $VMHost.ExtensionData.Config.Network.DnsConfig.Address -join ", "
                     "Cert Expires"     = $HostCertificateExpiration
+                    "Days to Expire"   = $HostCertExpireInDays
                     "VMs"              = ($VMHost | Get-VM | Measure-Object).Count
                     "Cluster"          = ($VMHost | Get-Cluster).Name
                     "Datacenter"       = ($VMHost | Get-Datacenter).Name
@@ -920,6 +928,7 @@ If($HostDataLastRow -gt 1){
     $MMColumn            = "Hosts!`$D`$2:`$D`$$HostDataLastRow"
     $LockdownColumn      = "Hosts!`$E`$2:`$E`$$HostDataLastRow"
     $NTPColumn           = "Hosts!`$O`$2:`$O`$$HostDataLastRow"
+    $DaysCertExpiresColumn = "Hosts!`$R`$2:`$R`$$HostDataLastRow"
 
     $HostDataStyle = New-ExcelStyle -Range $HostDataHeaderRow -HorizontalAlignment Center
 
@@ -927,6 +936,8 @@ If($HostDataLastRow -gt 1){
     $HostDataConditionalFormatting += New-ConditionalText -Range $MMColumn -ConditionalType ContainsText "TRUE" -ConditionalTextColor Brown -BackgroundColor Yellow
     $HostDataConditionalFormatting += New-ConditionalText -Range $LockdownColumn -ConditionalType ContainsText "lockdownDisabled" -ConditionalTextColor Brown -BackgroundColor Yellow
     $HostDataConditionalFormatting += New-ConditionalText -Range $NTPColumn -ConditionalType ContainsBlanks -BackgroundColor Yellow
+    $HostDataConditionalFormatting += New-ConditionalText -Range $DaysCertExpiresColumn -ConditionalType LessThanOrEqual '60' -ConditionalTextColor Brown -BackgroundColor Yellow
+    $HostDataConditionalFormatting += New-ConditionalText -Range $DaysCertExpiresColumn -ConditionalType LessThanOrEqual '30' -ConditionalTextColor Maroon -BackgroundColor Pink
 
     $HostData | Sort-Object "vCenter Server","Datacenter","Cluster","Name" | Export-Excel @ExcelProps -WorkSheetname "Hosts" -Style $HostDataStyle -ConditionalText $HostDataConditionalFormatting
 }
