@@ -450,6 +450,13 @@ $VCServerCounter ++
                 $HostCertExpireInDays = $null
             }
 
+            Try{
+                $DataCenterName = ($VMHost | Get-Datacenter -ErrorAction Stop).Name
+            }
+            Catch{
+                $DataCenterName = $null
+            }
+
             If($ErrorCount -eq 0){
                 $HostData += [PSCustomObject]@{
                     "Name"             = $VMHost.Name
@@ -471,8 +478,8 @@ $VCServerCounter ++
                     "Cert Expires"     = $HostCertificateExpiration
                     "Days to Expire"   = $HostCertExpireInDays
                     "VMs"              = ($VMHost | Get-VM | Measure-Object).Count
-                    "Cluster"          = ($VMHost | Get-Cluster).Name
-                    "Datacenter"       = ($VMHost | Get-Datacenter).Name
+                    "Cluster"          = $VMHost.Parent.Name
+                    "Datacenter"       = $DataCenterName
                     "vCenter Server"   = $VCServer
                 }
             }
@@ -548,8 +555,8 @@ $VCServerCounter ++
                     "Switch"       = $CDPExtended.DevID
                     "Switch IP"    = $CDPExtended.Address
                     "Switch Port"  = $CDPExtended.PortID
-                    "Cluster"      = ($VMHost | Get-Cluster).Name
-                    "Datacenter"   = ($VMHost | Get-Datacenter).Name
+                    "Cluster"      = $VMHost.Parent.Name
+                    "Datacenter"   = $DataCenterName
                 }
             }
             #endregion
@@ -579,8 +586,8 @@ $VCServerCounter ++
                     "MTU"         = $HostVMK.Mtu
                     "Port Group"  = $HostVMK.PortGroupName
                     "vMotion"     = $HostVMK.VMotionEnabled
-                    "Cluster"     = ($VMHost | Get-Cluster).Name
-                    "Datacenter"  = ($VMHost | Get-Datacenter).Name
+                    "Cluster"     = $VMHost.Parent.Name
+                    "Datacenter"  = $DataCenterName
                 }
             }
             #endregion
@@ -651,32 +658,6 @@ $VCServerCounter ++
                 $VSnapshots = $null
             }
 
-            Try{
-                $VMHostServer = Get-VMHost -VM $VMachine.Name -ErrorAction Stop
-            }
-            Catch{
-                $VMHostServer = $null
-                $vCenterError += [PSCustomObject]@{
-                    "Object" = "Virtual Machine"
-                    "Name"   = $VMachine.Name
-                    "Error"  = "The Get-VMHost command failed on $($VMachine.Name)"
-                }
-            }
-
-            Try{
-                $VMCluster = Get-Cluster -VM $VMachine.Name -ErrorAction Stop
-            }
-            Catch{
-                $VMCluster = $null
-            }
-
-            Try{
-                $VMDatacenter = Get-Datacenter -VM $VMachine.Name -ErrorAction Stop
-            }
-            Catch{
-                $VMDatacenter = $null
-            }
-
             $EncryptedProps = $VMProps.ExtensionData.Config.KeyId
             If($null -eq $EncryptedProps){
                 $EncryptedVM = $False
@@ -705,9 +686,9 @@ $VCServerCounter ++
                 "Snapshots"        = ($VSnapshots | Measure-Object).Count               # Column Q
                 "Consolidate"      = $VMachine.ExtensionData.Runtime.ConsolidationNeeded# Column R
                 "Folder"           = $VMProps.Folder.Name                               # Column S
-                "Host"             = $VMHostServer.Name                                 # Column T
-                "Cluster"          = $VMCluster.Name                                    # Column U
-                "Datacenter"       = $VMDatacenter.Name                                 # Column V
+                "Host"             = $VMachine.VMHost.Name                              # Column T
+                "Cluster"          = $VMachine.VMHost.Parent.Name                       # Column U
+                "Datacenter"       = ($VMachine | Get-Datacenter).Name                  # Column V
                 "Notes"            = $VMNotes                                           # Column W
                 "VM Path"          = $VMachine.ExtensionData.Config.Files.VmPathName    # Column X
                 "Connection State" = $VMConnectionState                                 # Column Y
