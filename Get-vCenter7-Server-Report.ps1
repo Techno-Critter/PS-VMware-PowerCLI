@@ -552,6 +552,8 @@ $VCServerCounter ++
                     "Driver"       = $PCINICProps.Driver
                     "vSwitch"      = $vSwitch.Name
                     "vSwitch Type" = $vSwitchType
+                    "DVS Ver"      = $vSwitch.Version
+                    "DVS MTU"      = $vSwitch.Mtu
                     "Switch"       = $CDPExtended.DevID
                     "Switch IP"    = $CDPExtended.Address
                     "Switch Port"  = $CDPExtended.PortID
