@@ -955,10 +955,10 @@ $VMDataLastRow = ($VMData | Measure-Object).Count + 1
 If($VMDataLastRow -gt 1){
     $VMDataHeaderCount        = Get-ColumnName ($VMData | Get-Member | Where-Object{$_.MemberType -match "NoteProperty"} | Measure-Object).Count
     $VMDataHeaderRow          = "'VMs'!`$A`$1:`$$VMDataHeaderCount`$1"
-    $VMDataUsedSpaceRawColumn = "'VMs'!`$O`$2:`$O`$$VMDataLastRow"
-    $VMSnapshotColumn         = "'VMs'!`$Q`$2:`$Q`$$VMDataLastRow"
-    $VMConsolidationColumn    = "'VMs'!`$R`$2:`$R`$$VMDataLastRow"
-    $VMOrphanedColumn         = "'VMs'!`$Y`$2:`$Y`$$VMDataLastRow"
+    $VMDataUsedSpaceRawColumn = "'VMs'!`$Q`$2:`$Q`$$VMDataLastRow"
+    $VMSnapshotColumn         = "'VMs'!`$S`$2:`$S`$$VMDataLastRow"
+    $VMConsolidationColumn    = "'VMs'!`$T`$2:`$T`$$VMDataLastRow"
+    $VMOrphanedColumn         = "'VMs'!`$AA`$2:`$AA`$$VMDataLastRow"
 
     $VMDataStyle = @()
     $VMDataStyle += New-ExcelStyle -Range $VMDataHeaderRow -HorizontalAlignment Center
@@ -966,10 +966,11 @@ If($VMDataLastRow -gt 1){
     $VMDataStyle += New-ExcelStyle -Range $VMSnapshotColumn -NumberFormat '0'
 
     $VMDataConditionalFormatting = @()
-    $VMDataConditionalFormatting += New-ConditionalText -Range $VMSnapshotColumn -ConditionalType GreaterThanOrEqual "1" -ConditionalTextColor Brown -BackgroundColor Yellow
-    $VMDataConditionalFormatting += New-ConditionalText -Range $VMConsolidationColumn -ConditionalType ContainsText "TRUE" -ConditionalTextColor Brown -BackgroundColor Yellow
-    $VMDataConditionalFormatting += New-ConditionalText -Range $VMOrphanedColumn -ConditionalType ContainsText "Orphaned" -ConditionalTextColor Maroon -BackgroundColor Pink
-    $VMDataConditionalFormatting += New-ConditionalText -Range $VMOrphanedColumn -ConditionalType ContainsText "Disconnected" -ConditionalTextColor Brown -BackgroundColor Yellow
+    $VMDataConditionalFormatting += New-ConditionalText -Range $VMSnapshotColumn -ConditionalType GreaterThanOrEqual '1' -ConditionalTextColor Brown -BackgroundColor Yellow
+    $VMDataConditionalFormatting += New-ConditionalText -Range $VMConsolidationColumn -ConditionalType ContainsText 'TRUE' -ConditionalTextColor Brown -BackgroundColor Yellow
+    $VMDataConditionalFormatting += New-ConditionalText -Range $VMOrphanedColumn -ConditionalType ContainsText 'orphaned' -ConditionalTextColor Maroon -BackgroundColor Pink
+    $VMDataConditionalFormatting += New-ConditionalText -Range $VMOrphanedColumn -ConditionalType ContainsText 'inaccessible' -ConditionalTextColor Brown -BackgroundColor Yellow
+    $VMDataConditionalFormatting += New-ConditionalText -Range $VMOrphanedColumn -ConditionalType ContainsText 'disconnected' -ConditionalTextColor Brown -BackgroundColor Yellow
 
     $VMData | Sort-Object "Name" | Export-Excel @ExcelProps -WorkSheetname "VMs" -Style $VMDataStyle -ConditionalFormat $VMDataConditionalFormatting
 }
