@@ -418,11 +418,16 @@ $VCServerCounter ++
                 $ESXCli = $null
             }
 
-            If($ESXCli){
+            Try{
                 $PCINIC = $ESXCli.Network.NIC.List.Invoke()
             }
-            Else{
+            Catch{
                 $PCINIC = $null
+                $vCenterError.Add([PSCustomObject]@{
+                    'Object' = 'Host'
+                    'Name'   = $VMHost.Name
+                    'Error'  = "Failed to enumerate NIC list on $($VMHost.Name)"
+                }) | Out-Null
             }
 
             $NetworkSystem = $HostObjView.ConfigManager.NetworkSystem
