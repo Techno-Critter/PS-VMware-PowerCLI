@@ -658,6 +658,25 @@ $VCServerCounter ++
                 }
             }
 
+            # VM USB Controller attached
+            Try{
+                $VMUSB = $VMProps.Config.Hardware.Device | Where-Object {$_.Gettype().Name -match 'VirtualUSB'}
+            }
+            Catch{
+                $VMUSB = $null
+                $vCenterError.Add([PSCustomObject]@{
+                    'Object' = 'Virtual Machine'
+                    'Name'   = $VMachine.Name
+                    'Error'  = "Could not retrieve Virtual USB information on $($VMachine.Name)"
+                }) | Out-Null
+            }
+            If($VMUSB){
+                $VMUSBAttached = $true
+            }
+            Else{
+                $VMUSBAttached = $false
+            }
+
             Try{
                 $VSnapshots = $VMachine | Get-Snapshot -ErrorAction Stop
             }
@@ -674,31 +693,34 @@ $VCServerCounter ++
             }
 
             $VMData += [PSCustomObject]@{
-                "Name"             = $VMachine.Name                                     # Column A
-                "OS"               = $VMProps.Summary.Config.GuestFullName              # Column B
-                "OS Family"        = $VMProps.Guest.GuestFamily                         # Column C
-                "Tools Version"    = $VMProps.Guest.ToolsVersion                        # Column D
-                "Tools Status"     = $VMProps.Guest.ToolsVersionStatus                  # Column E
-                "Tools Policy"     = $VMProps.Config.Tools.ToolsUpgradePolicy           # Column F
-                "HardwareVer"      = $VMachine.HardwareVersion                          # Column G
-                "Key ID"           = $EncryptedVM                                       # Column H
-                "State"            = $VMachine.PowerState                               # Column I
-                "IP"               = $VMachine.Guest.IPAddress -join ", "               # Column J
-                "CPUs"             = $VMachine.NumCpu                                   # Column K
-                "RAM"              = ("" + [math]::round($VMachine.MemoryGB) + "GB")    # Column L
-                "NICs"             = ($VMNicProps | Measure-Object).Count               # Column M
-                "Disks"            = ($VMHardDiskProps | Measure-Object).Count          # Column N
-                "Used Raw"         = $VMachine.UsedSpaceGB*1GB                          # Column O
-                "Used Space"       = Get-Size ($VMachine.UsedSpaceGB*1GB)               # Column P
-                "Snapshots"        = ($VSnapshots | Measure-Object).Count               # Column Q
-                "Consolidate"      = $VMachine.ExtensionData.Runtime.ConsolidationNeeded# Column R
-                "Folder"           = $VMProps.Folder.Name                               # Column S
-                "Host"             = $VMachine.VMHost.Name                              # Column T
-                "Cluster"          = $VMachine.VMHost.Parent.Name                       # Column U
-                "Datacenter"       = ($VMachine | Get-Datacenter).Name                  # Column V
-                "Notes"            = $VMNotes                                           # Column W
-                "VM Path"          = $VMachine.ExtensionData.Config.Files.VmPathName    # Column X
-                "Connection State" = $VMConnectionState                                 # Column Y
+                'Name'                   = $VMachine.Name                                                  # Column A
+                'OS'                     = $VMProps.Summary.Config.GuestFullName                           # Column B
+                'OS Family'              = $VMProps.Guest.GuestFamily                                      # Column C
+                'Tools Version'          = $VMProps.Guest.ToolsVersion                                     # Column D
+                'Tools Status'           = $VMProps.Guest.ToolsVersionStatus                               # Column E
+                'Tools Policy'           = $VMProps.Config.Tools.ToolsUpgradePolicy                        # Column F
+                'HardwareVer'            = $VMachine.HardwareVersion                                       # Column G
+                'Key ID'                 = $EncryptedVM                                                    # Column H
+                'Virtual Based Security' = $VMachine.ExtensionData.Config.Flags.VbsEnabled                 # Column I
+                'Secure Boot'            = $VMachine.ExtensionData.Config.BootOptions.EfiSecureBootEnabled # Column J
+                'State'                  = $VMachine.PowerState                                            # Column K
+                'IP'                     = $VMachine.Guest.IPAddress -join ', '                            # Column L
+                'CPUs'                   = $VMachine.NumCpu                                                # Column M
+                'RAM'                    = ('' + [math]::round($VMachine.MemoryGB) + 'GB')                 # Column N
+                'NICs'                   = ($VMNicProps | Measure-Object).Count                            # Column O
+                'USB Controller'         = $VMUSBAttached                                                  # Column P
+                'Disks'                  = ($VMHardDiskProps | Measure-Object).Count                       # Column Q
+                'Used Raw'               = $VMachine.UsedSpaceGB * 1GB                                     # Column R
+                'Used Space'             = Get-Size ($VMachine.UsedSpaceGB * 1GB)                          # Column S
+                'Snapshots'              = ($VSnapshots | Measure-Object).Count                            # Column T
+                'Consolidate'            = $VMachine.ExtensionData.Runtime.ConsolidationNeeded             # Column U
+                'Folder'                 = $VMProps.Folder.Name                                            # Column V
+                'Host'                   = $VMachine.VMHost.Name                                           # Column W
+                'Cluster'                = $VMachine.VMHost.Parent.Name                                    # Column X
+                'Datacenter'             = ($VMachine | Get-Datacenter).Name                               # Column Y
+                'Notes'                  = $VMNotes                                                        # Column Z
+                'VM Path'                = $VMachine.ExtensionData.Config.Files.VmPathName                 # Column AA
+                'Connection State'       = $VMConnectionState                                              # Column AB
             }
             #endregion
 
@@ -958,12 +980,13 @@ If($HostVMKDataLastRow -gt 1){
 # VM sheet
 $VMDataLastRow = ($VMData | Measure-Object).Count + 1
 If($VMDataLastRow -gt 1){
-    $VMDataHeaderCount        = Get-ColumnName ($VMData | Get-Member | Where-Object{$_.MemberType -match "NoteProperty"} | Measure-Object).Count
-    $VMDataHeaderRow          = "'VMs'!`$A`$1:`$$VMDataHeaderCount`$1"
-    $VMDataUsedSpaceRawColumn = "'VMs'!`$Q`$2:`$Q`$$VMDataLastRow"
-    $VMSnapshotColumn         = "'VMs'!`$S`$2:`$S`$$VMDataLastRow"
-    $VMConsolidationColumn    = "'VMs'!`$T`$2:`$T`$$VMDataLastRow"
-    $VMOrphanedColumn         = "'VMs'!`$AA`$2:`$AA`$$VMDataLastRow"
+    $VMDataHeaderCount = Get-ColumnName ($VMData | Get-Member | Where-Object{$_.MemberType -match 'NoteProperty'} | Measure-Object).Count
+    $VMDataHeaderRow = "'VMs'!`$A`$1:`$$VMDataHeaderCount`$1"
+    $VMUSBAttachedRow = "'VMs'!`$P`$2:`$P`$$VMDataLastRow"
+    $VMDataUsedSpaceRawColumn = "'VMs'!`$R`$2:`$R`$$VMDataLastRow"
+    $VMSnapshotColumn = "'VMs'!`$T`$2:`$T`$$VMDataLastRow"
+    $VMConsolidationColumn = "'VMs'!`$U`$2:`$U`$$VMDataLastRow"
+    $VMOrphanedColumn = "'VMs'!`$AB`$2:`$AB`$$VMDataLastRow"
 
     $VMDataStyle = @()
     $VMDataStyle += New-ExcelStyle -Range $VMDataHeaderRow -HorizontalAlignment Center
@@ -973,11 +996,12 @@ If($VMDataLastRow -gt 1){
     $VMDataConditionalFormatting = @()
     $VMDataConditionalFormatting += New-ConditionalText -Range $VMSnapshotColumn -ConditionalType GreaterThanOrEqual '1' -ConditionalTextColor Brown -BackgroundColor Yellow
     $VMDataConditionalFormatting += New-ConditionalText -Range $VMConsolidationColumn -ConditionalType ContainsText 'TRUE' -ConditionalTextColor Brown -BackgroundColor Yellow
+    $VMDataConditionalFormatting += New-ConditionalText -Range $VMUSBAttachedRow -ConditionalType ContainsText 'TRUE' -ConditionalTextColor Brown -BackgroundColor Yellow
     $VMDataConditionalFormatting += New-ConditionalText -Range $VMOrphanedColumn -ConditionalType ContainsText 'orphaned' -ConditionalTextColor Maroon -BackgroundColor Pink
     $VMDataConditionalFormatting += New-ConditionalText -Range $VMOrphanedColumn -ConditionalType ContainsText 'inaccessible' -ConditionalTextColor Brown -BackgroundColor Yellow
     $VMDataConditionalFormatting += New-ConditionalText -Range $VMOrphanedColumn -ConditionalType ContainsText 'disconnected' -ConditionalTextColor Brown -BackgroundColor Yellow
 
-    $VMData | Sort-Object "Name" | Export-Excel @ExcelProps -WorkSheetname "VMs" -Style $VMDataStyle -ConditionalFormat $VMDataConditionalFormatting
+    $VMData | Sort-Object 'Name' | Export-Excel @ExcelProps -WorksheetName 'VMs' -Style $VMDataStyle -ConditionalFormat $VMDataConditionalFormatting
 }
 
 # VM NIC sheet
