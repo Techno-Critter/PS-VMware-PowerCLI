@@ -117,23 +117,23 @@ Function Get-ColumnName ([int]$ColumnCount){
 #endregion
 
 #region Configure arrays and counters
-$vCenterError = @()
-$vCenterObject = @()
-$DatacenterData = @()
-$ClusterData = @()
-$ClusterDRSData = @()
-$VCLicenseServers = @()
-$LicenseCustomObject = @()
-$AssignedLicenseObject = @()
-$HostData = @()
-$HostNicData = @()
-$HostVMKData = @()
-$VMData = @()
-$VMNicData = @()
-$VMDriveData = @()
-$VMHardDiskData = @()
-$DatastoresData = @()
-$SnapshotData = @()
+[System.Collections.ArrayList]$vCenterError = @()
+[System.Collections.ArrayList]$vCenterObject = @()
+[System.Collections.ArrayList]$DatacenterData = @()
+[System.Collections.ArrayList]$ClusterData = @()
+[System.Collections.ArrayList]$ClusterDRSData = @()
+[System.Collections.ArrayList]$VDSwitchData = @()
+[System.Collections.ArrayList]$LicenseCustomObject = @()
+[System.Collections.ArrayList]$AssignedLicenseObject = @()
+[System.Collections.ArrayList]$HostData = @()
+[System.Collections.ArrayList]$HostVMKData = @()
+[System.Collections.ArrayList]$HostNicData = @()
+[System.Collections.ArrayList]$VMData = @()
+[System.Collections.ArrayList]$VMNicData = @()
+[System.Collections.ArrayList]$VMDriveData = @()
+[System.Collections.ArrayList]$VMHardDiskData = @()
+[System.Collections.ArrayList]$DatastoresData = @()
+[System.Collections.ArrayList]$SnapshotData = @()
 $LicenseDataCounter = 0
 $VCServerCounter = 0
 #endregion
@@ -270,7 +270,7 @@ $VCServerCounter ++
             If($ClusterDRSVMHostRules){
                 Write-Progress -Activity "vCenter server $VCServer" -Status "Gather VM/Host rules information..."
                 ForEach($VMHostRule in $ClusterDRSVMHostRules){
-                    $ClusterDRSData += [PSCustomObject]@{
+                    $ClusterDRSData += ([PSCustomObject]@{
                         "vCenter"    = $VCServer
                         "Datacenter" = (Get-Datacenter -Cluster $VCluster).Name
                         "Cluster"    = $VCluster.Name
@@ -279,10 +279,28 @@ $VCServerCounter ++
                         "Type"       = $VMHostRule.Type
                         "VMs"        = $VMHostRule.VMGroup.Member.Name -join ", "
                         "Hosts"      = $VMHostRule.VMHostGroup.Member.Name -join ", "
-                    }
+                    }) | Out-Null
                 }
             }
         }
+    }
+    #endregion
+
+    #region VirtualDistributedSwitches
+    Write-Progress -Activity "vCenter server $VCServer" -Status 'Gather Virtual Distributed Switch information...'
+    $VDSwitches = Get-VDSwitch
+    ForEach($VDS in $VDSwitches){
+        $VDSwitchData.Add([PSCustomObject]@{
+            'Name' = $VDS.Name
+            'Status' = $VDS.ExtensionData.OverallStatus
+            'Version' = $VDS.Version
+            'MTU' = $VDS.Mtu
+            'Hosts' = $VDS.ExtensionData.Summary.NumHosts
+            'Uplinks' = $VDS.NumUplinkPorts
+            'Ports' = $VDS.NumPorts
+            'Multicast Filtering' = $VDS.ExtensionData.Config.MulticastFilteringMode
+            'Server' = ([System.Uri]$VDS.ExtensionData.Client.ServiceUrl).Host
+        }) | Out-Null
     }
     #endregion
 
@@ -904,6 +922,20 @@ If($ClusterDRSDataLastRow -gt 1){
     $ClusterDRSDataStyle = New-ExcelStyle -Range $ClusterDRSDataHeaderRow -HorizontalAlignment Center
 
     $ClusterDRSData | Sort-Object "vCenter", "Datacenter", "Cluster", "Rule" | Export-Excel @ExcelProps -WorkSheetname "Cluster DRS" -Style $ClusterDRSDataStyle
+}
+
+# VDSwitch sheet
+$VDSwitchDataLastRow = ($VDSwitchData | Measure-Object).Count + 1
+If($VDSwitchDataLastRow -gt 1){
+    $VDSwitchDataHeaderCount = Get-ColumnName ($VDSwitchData | Get-Member |Where-Object{$_.MemberType -match 'NoteProperty'} | Measure-Object).Count
+    $VDSwitchDataHeaderRow = "'VDSwitches'!`$A`$1:`$$VDSwitchDataHeaderCount`$1"
+    $VDSwitchStatusColumn = "'VDSwitches'!`$B`$1:`$B`$$VDSwitchDataLastRow"
+
+    $VDSwitchDataStyle = New-ExcelStyle -Range $VDSwitchDataHeaderRow -HorizontalAlignment Center
+    $VDSwitchDataConditionalFormatting = @()
+    $VDSwitchDataConditionalFormatting = New-ConditionalText -Range $VDSwitchStatusColumn -ConditionalType ContainsText 'green' -ConditionalTextColor DarkGreen -BackgroundColor LightGreen
+
+    $VDSwitchData | Sort-Object 'Server','Name' | Export-Excel @ExcelProps -WorksheetName 'VDSwitches' -Style $VDSwitchDataStyle -ConditionalFormat $VDSwitchDataConditionalFormatting
 }
 
 # Licensing sheet
