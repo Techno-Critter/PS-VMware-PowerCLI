@@ -305,54 +305,51 @@ $VCServerCounter ++
     #endregion
 
     #region Licensing
-    # Licensing only needs to be run once. Once complete, increment counter so license section doesn't run again.
-    If($LicenseDataCounter -eq 0){
-        Write-Progress -Activity "vCenter server $VCServer" -Status "Gathering licensing information..."
-        $VCLicenseServers = Get-View LicenseManager
-        # Enumerate license servers
-        ForEach($VCLicenseServer in $VCLicenseServers){
-            $LicenseCustomObjects = $VCLicenseServer.Licenses
+    Write-Progress -Activity "vCenter server $VCServer" -Status "Gathering licensing information..."
+    $VCLicenseServers = Get-View LicenseManager
+    # Enumerate license servers
+    ForEach($VCLicenseServer in $VCLicenseServers){
+        $LicenseCustomObjects = $VCLicenseServer.Licenses
 
-            ForEach($LicenseObj in $LicenseCustomObjects){
-                $LicenseProperties = $LicenseObj.Properties
+        ForEach($LicenseObj in $LicenseCustomObjects){
+            $LicenseProperties = $LicenseObj.Properties
 
-                # License product and version handling
-                $LicenseProduct = $LicenseProperties | Where-Object {$_.Key -eq 'ProductName'} | Select-Object -ExpandProperty Value
-                $LicenseVersion = $LicenseProperties | Where-Object {$_.Key -eq 'ProductVersion'} | Select-Object -ExpandProperty Value
+            # License product and version handling
+            $LicenseProduct = $LicenseProperties | Where-Object {$_.Key -eq 'ProductName'} | Select-Object -ExpandProperty Value
+            $LicenseVersion = $LicenseProperties | Where-Object {$_.Key -eq 'ProductVersion'} | Select-Object -ExpandProperty Value
 
-                # License expiration handling
-                $LicenseExpiration = "Never"
-                $LicenseExpiresValues = $LicenseProperties | Where-Object {$_.Key -eq 'ExpirationDate'} | Select-Object -ExpandProperty Value
-                If($LicenseObj.Name -eq "Product Evaluation"){
-                    $LicenseExpiration = "Evaluation"
-                }
-                ElseIf($LicenseExpiresValues){
-                    $LicenseExpiration = $LicenseExpiresValues
-                }
-
-                # License count handling
-                If($LicenseObj.Total -eq 0){
-                    $LicenseCount = "Unlimited"
-                }
-                Else{
-                    $LicenseCount = $LicenseObj.Total
-                }
-
-                $LicenseCustomObject += [PSCustomObject]@{
-                    "vCenter Server" = $VCServer
-                    "License Host"   = ([System.uri]$VCLicenseServer.Client.ServiceUrl).Host
-                    "Name"           = $LicenseObj.Name
-                    "Product"        = $LicenseProduct
-                    "Version"        = $LicenseVersion
-                    "Edition Key"    = $LicenseObj.EditionKey
-                    "License Key"    = $LicenseObj.LicenseKey
-                    "Total"          = $LicenseCount
-                    "In Use"         = $LicenseObj.Used
-                    "Units"          = $LicenseObj.CostUnit
-                    "Expires"        = $LicenseExpiration
-                    "Labels"         = $LicenseObj.Labels
-                }
+            # License expiration handling
+            $LicenseExpiration = "Never"
+            $LicenseExpiresValues = $LicenseProperties | Where-Object {$_.Key -eq 'ExpirationDate'} | Select-Object -ExpandProperty Value
+            If($LicenseObj.Name -eq "Product Evaluation"){
+                $LicenseExpiration = "Evaluation"
             }
+            ElseIf($LicenseExpiresValues){
+                $LicenseExpiration = $LicenseExpiresValues
+            }
+
+            # License count handling
+            If($LicenseObj.Total -eq 0){
+                $LicenseCount = "Unlimited"
+            }
+            Else{
+                $LicenseCount = $LicenseObj.Total
+            }
+
+            $LicenseCustomObject += [PSCustomObject]@{
+                "vCenter Server" = $VCServer
+                "License Host"   = ([System.uri]$VCLicenseServer.Client.ServiceUrl).Host
+                "Name"           = $LicenseObj.Name
+                "Product"        = $LicenseProduct
+                "Version"        = $LicenseVersion
+                "Edition Key"    = $LicenseObj.EditionKey
+                "License Key"    = $LicenseObj.LicenseKey
+                "Total"          = $LicenseCount
+                "In Use"         = $LicenseObj.Used
+                "Units"          = $LicenseObj.CostUnit
+                "Expires"        = $LicenseExpiration
+                "Labels"         = $LicenseObj.Labels
+            } | Out-Null
             #endregion
 
             #region Assigned Licenses
