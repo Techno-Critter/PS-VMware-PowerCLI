@@ -16,5 +16,6 @@
       <li>Datastores
     </ul>
   <li>Find VM's using known IP address
+  <li>Get VM charge back information for monthly rates  
 </ul>
 <p> Note: Get-vCenter7-Server-Report.ps1 has been tested against vCenter 6.7, 7, and 8.03.</p>
