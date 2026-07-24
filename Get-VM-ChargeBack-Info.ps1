@@ -33,6 +33,9 @@ $CredentialFileDirectory = 'C:\Temp\Credentials'
 
 #region Cost variables
 #Costs for charge back model used in calculating monthly rate per VM
+# CPU rate is per core
+# RAM is per GB
+# Storage rate is per TB
 $CPURate = 5.52
 $RAMRate = 1.41
 $StorageRate = 59.4
@@ -130,6 +133,7 @@ Else{
 }
 #endregion
 
+#region Connect vCenter
 # Connect to vCenters and retrieve data
 Set-PowerCLIConfiguration -InvalidCertificateAction Ignore -Confirm:$False | Out-Null
 ForEach($VCServer in $VCServers){
@@ -147,6 +151,7 @@ ForEach($VCServer in $VCServers){
             }) | Out-Null
         Continue
     }
+#endregion
 
     #region VMs
     Try{
@@ -188,13 +193,9 @@ ForEach($VCServer in $VCServers){
                 $VMTotalHardDiskCapacityRaw += $VMDKRawCapacity
             }
 
-            $GBConversion = [Math]::Pow(1024,3)
-            $UsedRaw = $VMachine.UsedSpaceGB * 1GB 
-            $UsedGB = $UsedRaw / $GBConversion
             $CPUCost = $VMachine.NumCpu * $CPURate
-            $RAMGB = $VMachine.MemoryGB
-            $RAMCost = $RAMGB * $RAMRate 
-            $StorageCost = ($StorageRate * ($VMTotalHardDiskCapacityRaw  / $GBConversion) / 1024)
+            $RAMCost = $VMachine.MemoryGB * $RAMRate 
+            $StorageCost = $StorageRate * ($VMTotalHardDiskCapacityRaw  / [double]1TB
             $CPUCurrency = $CPUCost.ToString("C",[System.Globalization.CultureInfo]::CurrentCulture)
             $RAMCurrency = $RAMCost.ToString("C",[System.Globalization.CultureInfo]::CurrentCulture)
             $StorageCurrency = $StorageCost.ToString("C",[System.Globalization.CultureInfo]::CurrentCulture)
@@ -204,12 +205,12 @@ ForEach($VCServer in $VCServers){
             $VMData.Add([PSCustomObject]@{ 
                 'Name'         = $VMachine.Name                                 # Column A
                 'CPUs'         = $VMachine.NumCpu                               # Column B
-                'RAM GB'       = $RAMGB                                         # Column C
+                'RAM GB'       = $VMachine.MemoryGB                             # Column C
                 'Disks'        = ($VMHardDiskProps | Measure-Object).Count      # Column D
-                'Used Raw'     = $UsedRaw                                       # Column E
-                'Used GB'      = $UsedGB                                        # Column F
+                'Used Raw'     = $VMachine.UsedSpaceGB * 1GB                    # Column E
+                'Used GB'      = $VMachine.UsedSpaceGB                          # Column F
                 'Capacity Raw' = $VMTotalHardDiskCapacityRaw                    # Column G
-                'Capacity GB'  = ($VMTotalHardDiskCapacityRaw / $GBConversion)  # Column H
+                'Capacity GB'  = ($VMTotalHardDiskCapacityRaw / [double]1GB)    # Column H
                 'Host'         = $VMachine.VMHost.Name                          # Column I
                 'Cluster'      = $VMachine.VMHost.Parent.Name                   # Column J
                 'CPU Cost'     = $CPUCurrency                                   # Column K
@@ -223,10 +224,12 @@ ForEach($VCServer in $VCServers){
     }
     #endregion
 
+#region Disconnect vCenter
     Disconnect-VIServer -Server * -Confirm:$False
 }
 
 Write-Progress -Activity "vCenter server $VCServer" -Completed
+#endregion
 
 #region Output to Excel
 # Create Excel standard configuration properties
@@ -247,6 +250,7 @@ If($VMDataLastRow -gt 1){
     $VMRAMGBColumn = "'VMs'!`$C`$2:`$C`$$VMDataLastRow"
     $VMDisksColumn = "'VMs'!`$D`$2:`$D`$$VMDataLastRow"
     $VMUsedRawColumn = "'VMs'!`$E`$2:`$E`$$VMDataLastRow"
+    $VMUsedGBColumn = "'VMs'!`$F`$2:`$F`$$VMDataLastRow"
     $VMCapacityRawColumn = "'VMs'!`$G`$2:`$G`$$VMDataLastRow"
     $VMCapacityGBColumn = "'VMs'!`$H`$2:`$H`$$VMDataLastRow"
     $VMCPUCostColumn = "'VMs'!`$K`$2:`$K`$$VMDataLastRow"
