@@ -39,11 +39,11 @@ Storage rate is per TB
 Storage exemption is how much space is allocatted that does not get charged to customer. This number can be 0.
 Storage exemption is per GB.
 #>
-$CPURate = 5.52
-$RAMRate = 1.41
-$StorageRate = 59.4
+$CPURate            = 5.52
+$RAMRate            = 1.41
+$StorageRate        = 59.4
 $VMStorageExemption = 100
-$FlatRate = 7.55
+$FlatRate           = 7.55
 # Convert flat rate to currency format
 $FlatCurrency = $FlatRate.ToString("C",[System.Globalization.CultureInfo]::CurrentCulture)
 #endregion
@@ -168,13 +168,14 @@ ForEach($VCServer in $VCServers){
     If($VMachines){
         $VMCounter = 0
         ForEach($VMachine in $VMachines){
+            # Reset variables for each VM
             $VMCounter ++
-            $CPUCost = $null
-            $CPUCurrency = $null
-            $RAMCost = $null
-            $RAMCurrency = $null
-            $StorageCost = $null
-            $StorageCurrency = $null
+            $CPUCost                 = $null
+            $CPUCurrency             = $null
+            $RAMCost                 = $null
+            $RAMCurrency             = $null
+            $StorageCost             = $null
+            $StorageCurrency         = $null
             $VMTotalHDChargeCapacity = $null
 
             Write-Progress -Activity "vCenter server $VCServer" -Status 'Gathering virtual machine information...' -CurrentOperation $VMachine.Name -PercentComplete ($VMCounter * 100 / ($VMachines | Measure-Object).Count)
