@@ -177,6 +177,8 @@ ForEach($VCServer in $VCServers){
             $StorageCost             = $null
             $StorageCurrency         = $null
             $VMTotalHDChargeCapacity = $null
+            $MonthlyRate             = $null
+            $MonthlyCurrency         = $null
 
             Write-Progress -Activity "vCenter server $VCServer" -Status 'Gathering virtual machine information...' -CurrentOperation $VMachine.Name -PercentComplete ($VMCounter * 100 / ($VMachines | Measure-Object).Count)
 
@@ -213,13 +215,13 @@ ForEach($VCServer in $VCServers){
             }
             #endregion
 
-            $CPUCost = $VMachine.NumCpu * $CPURate
-            $RAMCost = $VMachine.MemoryGB * $RAMRate 
-            $StorageCost = $StorageRate * ($VMTotalHDChargeCapacity / [double]1TB)
-            $CPUCurrency = $CPUCost.ToString("C",[System.Globalization.CultureInfo]::CurrentCulture)
-            $RAMCurrency = $RAMCost.ToString("C",[System.Globalization.CultureInfo]::CurrentCulture)
+            $CPUCost         = $VMachine.NumCpu * $CPURate
+            $RAMCost         = $VMachine.MemoryGB * $RAMRate 
+            $StorageCost     = $StorageRate * ($VMTotalHDChargeCapacity / [double]1TB)
+            $CPUCurrency     = $CPUCost.ToString("C",[System.Globalization.CultureInfo]::CurrentCulture)
+            $RAMCurrency     = $RAMCost.ToString("C",[System.Globalization.CultureInfo]::CurrentCulture)
             $StorageCurrency = $StorageCost.ToString("C",[System.Globalization.CultureInfo]::CurrentCulture)
-            $MonthlyRate = ($CPUCost + $RAMCost + $StorageCost + $FlatRate)
+            $MonthlyRate     = ($CPUCost + $RAMCost + $StorageCost + $FlatRate)
             $MonthlyCurrency = $MonthlyRate.ToString("C",[System.Globalization.CultureInfo]::CurrentCulture)
 
             $VMData.Add([PSCustomObject]@{ 
