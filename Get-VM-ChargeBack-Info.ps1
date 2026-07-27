@@ -46,6 +46,8 @@ $VMStorageExemption = 100
 $FlatRate           = 7.55
 # Convert flat rate to currency format
 $FlatCurrency = $FlatRate.ToString("C",[System.Globalization.CultureInfo]::CurrentCulture)
+# Convert storage exemption to bytes
+$VMStorageExemptionRaw = $VMStorageExemption * 1GB
 #endregion
 
 #region Function: Convert number of object items into Excel column headers
@@ -208,7 +210,6 @@ ForEach($VCServer in $VCServers){
                 $VMTotalHardDiskCapacityRaw += $VMDKRawCapacity
             }
 
-            $VMStorageExemptionRaw = $VMStorageExemption * 1GB
             $VMTotalHDChargeCapacity = $VMTotalHardDiskCapacityRaw - $VMStorageExemptionRaw
             If($VMTotalHDChargeCapacity -lt '0'){
                 $VMTotalHDChargeCapacity = '0'
