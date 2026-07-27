@@ -197,6 +197,7 @@ ForEach($VCServer in $VCServers){
                     }) | Out-Null
             }
 
+            # Reset variable for each VMHD
             $VMTotalHardDiskCapacityRaw = $null
 
             ForEach($VMHardDisk in $VMHardDiskProps){
