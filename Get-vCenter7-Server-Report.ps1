@@ -359,7 +359,7 @@ $VCServerCounter ++
                 "Expires"        = $LicenseExpiration
                 "Labels"         = $LicenseObj.Labels
             }) | Out-Null
-        )
+        }
         #endregion
 
         #region Assigned Licenses
@@ -771,7 +771,7 @@ $VCServerCounter ++
                 'Folder'                 = $VMProps.Folder.Name                                            # Column V
                 'Host'                   = $VMachine.VMHost.Name                                           # Column W
                 'Cluster'                = $VMachine.VMHost.Parent.Name                                    # Column X
-                'Datacenter'             = ($VMachine | Get-Datacenter).Name                               # Column Y
+                'Datacenter'             = $VMDataCenterName                                               # Column Y
                 'Notes'                  = $VMNotes                                                        # Column Z
                 'VM Path'                = $VMachine.ExtensionData.Config.Files.VmPathName                 # Column AA
                 'Connection State'       = $VMConnectionState                                              # Column AB
