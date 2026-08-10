@@ -198,12 +198,12 @@ $VCServerCounter ++
     Write-Progress -Activity "vCenter server $VCServer" -Status "Gathering Datacenter information..."
     If($VDatacenters){
         ForEach($VDatacenter in $VDatacenters){
-            $DatacenterData += [PSCustomObject]@{
+            $DatacenterData.Add([PSCustomObject]@{
                 "Datacenter" = $VDatacenter.Name
                 "vCenter"    = $VCServer
                 "Hosts"      = (Get-VMHost -Location $VDatacenter.Name | Measure-Object).Count
                 "VMs"        = (Get-VM -Location $VDatacenter.Name | Measure-Object).Count
-            }
+            }) | Out-Null
         }
     }
     #endregion
@@ -219,7 +219,7 @@ $VCServerCounter ++
     If($VClusters){
         Write-Progress -Activity "vCenter server $VCServer" -Status "Gathering Cluster information..."
         ForEach($VCluster in $VCLusters){
-            $ClusterData += [PSCustomObject]@{
+            $ClusterData.Add([PSCustomObject]@{
                 "Cluster"    = $VCluster.Name
                 "Datacenter" = (Get-Datacenter -Cluster $VCluster).Name
                 "vCenter"    = $VCServer
@@ -229,7 +229,7 @@ $VCServerCounter ++
                 "AutoLevel"  = $VCluster.DrsAutomationLevel
                 "Hosts"      = (Get-VMHost -Location $VCluster.Name | Measure-Object).Count
                 "VMs"        = (Get-VM -Location $VCluster.Name | Measure-Object).Count
-            }
+            }) | Out-Null
             #endregion
 
             #region ClusterRules
@@ -250,7 +250,7 @@ $VCServerCounter ++
                             $RuleMachineNames += Get-VM -Id $RuleMachine
                         }
                     }
-                    $ClusterDRSData += [PSCustomObject]@{
+                    $ClusterDRSData.Add([PSCustomObject]@{
                         "vCenter"    = $VCServer
                         "Datacenter" = (Get-Datacenter -Cluster $VCluster).Name
                         "Cluster"    = $VCluster.Name
@@ -259,9 +259,10 @@ $VCServerCounter ++
                         "Type"       = $DRSRule.Type
                         "VMs"        = $RuleMachineNames -join ", "
                         "Hosts"      = "N/A"
-                    }
+                    }) | Out-Null
                 }
             }
+            
             # DRS VM/Host Rules
             Try{
                 $ClusterDRSVMHostRules = Get-DrsVMHostRule -Cluster $VCluster.Name -ErrorAction Stop
@@ -272,7 +273,7 @@ $VCServerCounter ++
             If($ClusterDRSVMHostRules){
                 Write-Progress -Activity "vCenter server $VCServer" -Status "Gather VM/Host rules information..."
                 ForEach($VMHostRule in $ClusterDRSVMHostRules){
-                    $ClusterDRSData += ([PSCustomObject]@{
+                    $ClusterDRSData.Add([PSCustomObject]@{
                         "vCenter"    = $VCServer
                         "Datacenter" = (Get-Datacenter -Cluster $VCluster).Name
                         "Cluster"    = $VCluster.Name
@@ -293,22 +294,28 @@ $VCServerCounter ++
     $VDSwitches = Get-VDSwitch
     ForEach($VDS in $VDSwitches){
         $VDSwitchData.Add([PSCustomObject]@{
-            'Name' = $VDS.Name
-            'Status' = $VDS.ExtensionData.OverallStatus
-            'Version' = $VDS.Version
-            'MTU' = $VDS.Mtu
-            'Hosts' = $VDS.ExtensionData.Summary.NumHosts
-            'Uplinks' = $VDS.NumUplinkPorts
-            'Ports' = $VDS.NumPorts
+            'Name'                = $VDS.Name
+            'Status'              = $VDS.ExtensionData.OverallStatus
+            'Version'             = $VDS.Version
+            'MTU'                 = $VDS.Mtu
+            'Hosts'               = $VDS.ExtensionData.Summary.NumHosts
+            'Uplinks'             = $VDS.NumUplinkPorts
+            'Ports'               = $VDS.NumPorts
             'Multicast Filtering' = $VDS.ExtensionData.Config.MulticastFilteringMode
-            'Server' = ([System.Uri]$VDS.ExtensionData.Client.ServiceUrl).Host
+            'Server'              = ([System.Uri]$VDS.ExtensionData.Client.ServiceUrl).Host
         }) | Out-Null
     }
     #endregion
 
     #region Licensing
-    Write-Progress -Activity "vCenter server $VCServer" -Status "Gathering licensing information..."
-    $VCLicenseServers = Get-View LicenseManager
+    Write-Progress -Activity "vCenter server $VCServer" -Status 'Gathering licensing information...'
+    Try{
+        $VCLicenseServers = Get-View LicenseManager -ErrorAction Stop
+    }
+    Catch{
+        $VCLicenseServers = $null
+    }
+
     # Enumerate license servers
     ForEach($VCLicenseServer in $VCLicenseServers){
         $LicenseCustomObjects = $VCLicenseServer.Licenses
@@ -321,10 +328,10 @@ $VCServerCounter ++
             $LicenseVersion = $LicenseProperties | Where-Object {$_.Key -eq 'ProductVersion'} | Select-Object -ExpandProperty Value
 
             # License expiration handling
-            $LicenseExpiration = "Never"
+            $LicenseExpiration = 'Never'
             $LicenseExpiresValues = $LicenseProperties | Where-Object {$_.Key -eq 'ExpirationDate'} | Select-Object -ExpandProperty Value
-            If($LicenseObj.Name -eq "Product Evaluation"){
-                $LicenseExpiration = "Evaluation"
+            If($LicenseObj.Name -eq 'Product Evaluation'){
+                $LicenseExpiration = 'Evaluation'
             }
             ElseIf($LicenseExpiresValues){
                 $LicenseExpiration = $LicenseExpiresValues
@@ -338,7 +345,7 @@ $VCServerCounter ++
                 $LicenseCount = $LicenseObj.Total
             }
 
-            $LicenseCustomObject += [PSCustomObject]@{
+            $LicenseCustomObject.Add([PSCustomObject]@{
                 "vCenter Server" = $VCServer
                 "License Host"   = ([System.uri]$VCLicenseServer.Client.ServiceUrl).Host
                 "Name"           = $LicenseObj.Name
@@ -351,16 +358,17 @@ $VCServerCounter ++
                 "Units"          = $LicenseObj.CostUnit
                 "Expires"        = $LicenseExpiration
                 "Labels"         = $LicenseObj.Labels
-            } | Out-Null
-            #endregion
+            }) | Out-Null
+        )
+        #endregion
 
-            #region Assigned Licenses
-            $AssignmentManager = Get-View $VCLicenseServer.LicenseAssignmentManager
-            $AssignedLicenses = $null
-            $AssignedLicenses = $AssignmentManager.QueryAssignedLicenses($VCLicenseServer.InstanceUUID)
+        #region Assigned Licenses
+        $AssignmentManager = Get-View $VCLicenseServer.LicenseAssignmentManager
+        $AssignedLicenses = $null
+        $AssignedLicenses = $AssignmentManager.QueryAssignedLicenses($VCLicenseServer.InstanceUUID)
 
-            ForEach($AssignedLicense in $AssignedLicenses){
-                $AssignedLicenseObject += [PSCustomObject]@{
+        ForEach($AssignedLicense in $AssignedLicenses){
+                $AssignedLicenseObject.Add([PSCustomObject]@{
                     "Entity"          = $AssignedLicense.EntityDisplayName
                     "License Name"    = $AssignedLicense.AssignedLicense.Name
                     "Product Name"    = $AssignedLicense.AssignedLicense.Properties | Where-Object {$_.Key -eq 'ProductName'} | Select-Object -ExpandProperty Value
@@ -368,12 +376,10 @@ $VCServerCounter ++
                     "License Key"     = $AssignedLicense.AssignedLicense.LicenseKey
                     "Edition Key"     = $AssignedLicense.AssignedLicense.EditionKey
                     "Scope"           = $AssignedLicense.Scope
-                }
+                }) | Out-Null
             }
             #endregion
         }
-        $LicenseDataCounter ++
-    }
 
     #region Hosts
     Try{
@@ -401,11 +407,11 @@ $VCServerCounter ++
             Catch{
                 $HostObjView = $null
                 $ErrorCount ++
-                $vCenterError += [PSCustomObject]@{
+                $vCenterError.Add([PSCustomObject]@{
                     "Object" = "Host"
                     "Name"   = $VMHost.Name
                     "Error"  = "The Get-View command failed on host $($VMHost.Name)"
-                }
+                }) | Out-Null
             }
 
             Try{
@@ -414,11 +420,11 @@ $VCServerCounter ++
             Catch{
                 $NTPServers = "Error"
                 $ErrorCount ++
-                $vCenterError += [PSCustomObject]@{
+                $vCenterError.Add([PSCustomObject]@{
                     "Object" = "Host"
                     "Name"   = $VMHost.Name
                     "Error"  = "The Get-VMHostNtpServer command failed on host $($VMHost.Name)"
-                }
+                }) | Out-Null
             }
 
             If($HostObjView.Hardware.SystemInfo.OtherIdentifyingInfo){
@@ -447,8 +453,22 @@ $VCServerCounter ++
                 }) | Out-Null
             }
 
+            Try{
+                $HostLogHost = Get-AdvancedSetting -Entity $VMHost -Name "Syslog.global.logHost" -ErrorAction Stop
+            }
+            Catch{
+                $HostLogHost = $null
+            }
+
             $NetworkSystem = $HostObjView.ConfigManager.NetworkSystem
-            $NetworkSystemView = Get-View $NetworkSystem
+            
+            Try{
+                $NetworkSystemView = Get-View $NetworkSystem
+            }
+            Catch{
+                $NetworkSystemView = $null
+            }
+
             Try{
                 $HostDistributedVirtualSwitches = Get-VDSwitch -VMHost $VMHost.Name -ErrorAction Stop
             }
@@ -480,30 +500,34 @@ $VCServerCounter ++
             }
 
             If($ErrorCount -eq 0){
-                $HostData += [PSCustomObject]@{
-                    "Name"             = $VMHost.Name
-                    "ESXi"             = $VMHost.Version
-                    "Build"            = $VMHost.Build
-                    "Maintenance Mode" = $HostObjView.Runtime.InMaintenanceMode
-                    "Lockdown Mode"    = $HostObjView.Config.LockdownMode
-                    "Vendor"           = $HostObjView.Hardware.SystemInfo.Vendor
-                    "Model"            = $HostObjView.Hardware.SystemInfo.Model
-                    "Serial"           = $HostSerialNumber
-                    "Processor Type"   = $VMHost.ProcessorType
-                    "CPU Count"        = $HostObjView.Hardware.CpuInfo.NumCpuPackages
-                    "Cores"            = $HostObjView.Hardware.CpuInfo.NumCpuCores
-                    "RAM"              = ("" + [math]::round($HostObjView.Hardware.MemorySize/1GB,0) + "GB")
-                    "BIOS"             = $HostObjView.Hardware.BiosInfo.BiosVersion
-                    "Days Up"          = New-TimeSpan -Start $VMHost.ExtensionData.Summary.Runtime.BootTime -End (Get-Date) | Select-Object -ExpandProperty Days
-                    "NTP Servers"      = $NTPServers -join ", "
-                    "DNS Servers"      = $VMHost.ExtensionData.Config.Network.DnsConfig.Address -join ", "
-                    "Cert Expires"     = $HostCertificateExpiration
-                    "Days to Expire"   = $HostCertExpireInDays
-                    "VMs"              = ($VMHost | Get-VM | Measure-Object).Count
-                    "Cluster"          = $VMHost.Parent.Name
-                    "Datacenter"       = $DataCenterName
-                    "vCenter Server"   = $VCServer
-                }
+                $HostData.Add([PSCustomObject]@{
+                    'Name'             = $VMHost.Name
+                    'ESXi'             = $VMHost.Version
+                    'Build'            = $VMHost.Build
+                    'Product'          = $HostObjView.Config.Product.FullName
+                    'Maintenance Mode' = $HostObjView.Runtime.InMaintenanceMode
+                    'Lockdown Mode'    = $HostObjView.Config.LockdownMode
+                    'Vendor'           = $HostObjView.Hardware.SystemInfo.Vendor
+                    'Model'            = $HostObjView.Hardware.SystemInfo.Model
+                    'Serial'           = $HostSerialNumber
+                    'License'          = $VMHost.LicenseKey
+                    'EVC Mode'         = $VMHost.MaxEVCMode
+                    'Processor Type'   = $VMHost.ProcessorType
+                    'CPU Count'        = $HostObjView.Hardware.CpuInfo.NumCpuPackages
+                    'Cores'            = $HostObjView.Hardware.CpuInfo.NumCpuCores
+                    'RAM GB'           = ('' + [math]::round($HostObjView.Hardware.MemorySize / 1GB, 0))
+                    'BIOS'             = $HostObjView.Hardware.BiosInfo.BiosVersion
+                    'Days Up'          = New-TimeSpan -Start $VMHost.ExtensionData.Summary.Runtime.BootTime -End (Get-Date) | Select-Object -ExpandProperty Days
+                    'NTP Servers'      = $NTPServers -join ', '
+                    'DNS Servers'      = $VMHost.ExtensionData.Config.Network.DnsConfig.Address -join ', '
+                    'Syslog Host'      = $HostLogHost.value
+                    'Cert Expires'     = $HostCertificateExpiration
+                    'Days to Expire'   = $HostCertExpireInDays
+                    'VMs'              = ($VMHost | Get-VM | Measure-Object).Count
+                    'Cluster'          = $VMHost.Parent.Name
+                    'Datacenter'       = $DataCenterName
+                    'vCenter Server'   = $VCServer
+                }) | Out-Null
             }
             Else{
                 Write-Warning "Host error count equals $ErrorCount on host $($VMHost.Name)"
@@ -516,11 +540,11 @@ $VCServerCounter ++
             }
             Catch{
                 $HostNICs = $null
-                $vCenterError += [PSCustomObject]@{
+                $vCenterError.Add([PSCustomObject]@{
                     "Object" = "Host"
                     "Name"   = $VMHost.Name
                     "Error"  = "The Get-VMHostNetworkAdapter (Physical) command failed on $($VMHost.Name)"
-                }
+                }) | Out-Null
             }
 
             ForEach($HostNic in $HostNICs){
@@ -535,9 +559,10 @@ $VCServerCounter ++
                 Else{
                     $PCINICProps = $null
                 }
-
-                $NetworkHint = $NetworkSystemView.QueryNetworkHint($HostNic.Name)
-                $CDPExtended = $NetworkHint.ConnectedSwitchPort
+                If($NetworkSystemView){
+                    $NetworkHint = $NetworkSystemView.QueryNetworkHint($HostNic.Name)
+                    $CDPExtended = $NetworkHint.ConnectedSwitchPort
+                }
                 # Check if NIC is connected to distributed switch
                 If($HostDistributedVirtualSwitches){
                     $vSwitchType = "Distributed"
@@ -562,7 +587,7 @@ $VCServerCounter ++
                     $vSwitchType = $null
                 }
 
-                $HostNicData += [PSCustomObject]@{
+                $HostNicData.Add([PSCustomObject]@{
                     "Host"         = $VMHost.Name
                     "Name"         = $HostNic.Name
                     "MAC"          = $HostNic.MAC
@@ -581,7 +606,7 @@ $VCServerCounter ++
                     "Switch Port"  = $CDPExtended.PortID
                     "Cluster"      = $VMHost.Parent.Name
                     "Datacenter"   = $DataCenterName
-                }
+                }) | Out-Null
             }
             #endregion
 
@@ -591,15 +616,15 @@ $VCServerCounter ++
             }
             Catch{
                 $HostVMKs = $null
-                $vCenterError += [PSCustomObject]@{
+                $vCenterError.Add([PSCustomObject]@{
                     "Object" = "Host"
                     "Name"   = $VMHost.Name
                     "Error"  = "The Get-VMHostNetworkAdapter (VMKernel) command failed on $($VMHost.Name)"
-                }
+                }) | Out-Null
             }
 
             ForEach($HostVMK in $HostVMKs){
-                $HostVMKData += [PSCustomObject]@{
+                $HostVMKData.Add([PSCustomObject]@{
                     "Host"        = $VMHost.Name
                     "Name"        = $HostVMK.Name
                     "Device"      = $HostVMK.DeviceName
@@ -612,7 +637,7 @@ $VCServerCounter ++
                     "vMotion"     = $HostVMK.VMotionEnabled
                     "Cluster"     = $VMHost.Parent.Name
                     "Datacenter"  = $DataCenterName
-                }
+                }) | Out-Null
             }
             #endregion
         }
@@ -637,11 +662,11 @@ $VCServerCounter ++
             }
             Catch{
                 $VMProps = $null
-                $vCenterError += [PSCustomObject]@{
+                $vCenterError.Add([PSCustomObject]@{
                     "Object" = "Virtual Machine"
                     "Name"   = $VMachine.Name
                     "Error"  = "The Get-VM command failed on $($VMachine.Name)"
-                }
+                }) | Out-Null
             }
 
             Try{
@@ -656,11 +681,11 @@ $VCServerCounter ++
             }
             Catch{
                 $VMNicProps = $null
-                $vCenterError += [PSCustomObject]@{
+                $vCenterError.Add([PSCustomObject]@{
                     "Object" = "Virtual Machine"
                     "Name"   = $VMachine.Name
                     "Error"  = "The Get-NetworkAdapter command failed on $($VMachine.Name)"
-                }
+                }) | Out-Null
             }
 
             Try{
@@ -668,11 +693,11 @@ $VCServerCounter ++
             }
             Catch{
                 $VMHardDiskProps = $null
-                $vCenterError += [PSCustomObject]@{
+                $vCenterError.Add([PSCustomObject]@{
                     "Object" = "Virtual Machine"
                     "Name"   = $VMachine.Name
                     "Error"  = "The Get-HardDisk command failed on $($VMachine.Name)"
-                }
+                }) | Out-Null
             }
 
             # VM USB Controller attached
@@ -709,7 +734,19 @@ $VCServerCounter ++
                 $EncryptedVM = $EncryptedProps.KeyId
             }
 
-            $VMData += [PSCustomObject]@{
+            Try{
+                $VMDataCenterName = ($VMachine | Get-Datacenter -ErrorAction Stop).Name
+            }
+            Catch{
+                $VMDataCenterName = $null
+                $vCenterError.Add([PSCustomObject]@{
+                    'Object' = 'Virtual Machine'
+                    'Name'   = $VMachine.Name
+                    'Error'  = "Could not retrieve Datacenter information on $($VMachine.Name)"
+                }) | Out-Null
+            }
+
+            $VMData.Add([PSCustomObject]@{
                 'Name'                   = $VMachine.Name                                                  # Column A
                 'OS'                     = $VMProps.Summary.Config.GuestFullName                           # Column B
                 'OS Family'              = $VMProps.Guest.GuestFamily                                      # Column C
@@ -738,12 +775,13 @@ $VCServerCounter ++
                 'Notes'                  = $VMNotes                                                        # Column Z
                 'VM Path'                = $VMachine.ExtensionData.Config.Files.VmPathName                 # Column AA
                 'Connection State'       = $VMConnectionState                                              # Column AB
-            }
+                'DNS Name'               = $VMProps.Guest.HostName                                         # Column AC
+             }) | Out-Null
             #endregion
 
             #region VM NICs
             ForEach($VNic in $VMNicProps){
-                $VMNicData += [PSCustomObject]@{
+                $VMNicData.Add([PSCustomObject]@{
                     "VM"             = $VMachine.Name
                     "NIC"            = $VNic.Name
                     "Type"           = $VNic.Type
@@ -751,14 +789,14 @@ $VCServerCounter ++
                     "ConnectAtStart" = $VNic.ConnectionState.StartConnected
                     "Network"        = $VNic.NetworkName
                     "MAC"            = $VNic.MacAddress
-                }
+                }) | Out-Null
             }
             #endregion
 
             # region VM Snapshots
             If($VSnapshots){
                 ForEach($VSnapshot in $VSnapshots){
-                    $SnapshotData += [PSCustomObject]@{
+                    $SnapshotData.Add([PSCustomObject]@{
                         "VM"             = $VMachine.Name
                         "Snapshot"       = $VSnapshot.Name
                         "Created"        = $VSnapshot.Created
@@ -767,7 +805,7 @@ $VCServerCounter ++
                         "VM State"       = $VMachine.PowerState
                         "Snapshot State" = $VSnapshot.PowerState
                         "Description"    = $VSnapshot.Description
-                    }
+                    }) | Out-Null
                 }
             }
             #endregion
@@ -796,7 +834,7 @@ $VCServerCounter ++
                     $VMDKCapacity = "N/A"
                 }
 
-                $VMHardDiskData += [PSCustomObject]@{
+                $VMHardDiskData.Add([PSCustomObject]@{
                     "VM"           = $VMachine.Name
                     "Disk"         = $VMHardDisk.Name
                     "Raw Capacity" = $VMDKRawCapacity
@@ -808,11 +846,11 @@ $VCServerCounter ++
                     "Type"         = $VMHardDisk.DiskType
                     "Datastore"    = ($VMHardDisk.Filename).Split("]")[0].Split("[")[1]
                     "File Name"    = $VMHardDisk.FileName
-                }
+                }) | Out-Null
             }
 
             ForEach($VMDrive in $VMProps.Guest.Disks){
-                $VMDriveData += [PSCustomObject]@{
+                $VMDriveData.Add([PSCustomObject]@{
                     "VM"           = $VMachine.Name
                     "Path"         = $VMDrive.Path
                     "Raw Capacity" = $VMDrive.Capacity
@@ -821,7 +859,7 @@ $VCServerCounter ++
                     "Free"         = Get-Size $VMDrive.FreeSpace
                     "Raw Used"     = $VMDrive.Capacity - $VMDrive.FreeSpace
                     "Used"         = Get-Size ($VMDrive.Capacity - $VMDrive.FreeSpace)
-                }
+                }) | Out-Null
             }
         }
     }
@@ -834,11 +872,11 @@ $VCServerCounter ++
     }
     Catch{
         $VDatastores = $null
-        $vCenterError += [PSCustomObject]@{
+        $vCenterError.Add([PSCustomObject]@{
             "Object" = "Datastore"
             "Name"   = $VCServer
             "Error"  = "The Get-Datastore command failed on $VCServer"
-        }
+        }) | Out-Null
     }
 
     ForEach($VDatastore in $VDatastores){
@@ -848,7 +886,7 @@ $VCServerCounter ++
         Else{
             $DatastorePctFree = [math]::Round((($VDatastore.FreeSpaceGB/$VDatastore.CapacityGB)*100),2)
         }
-        $DatastoresData += [PSCustomObject]@{
+        $DatastoresData.Add([PSCustomObject]@{
             "Store"      = $VDatastore.Name
             "CapacityGB" = [math]::Round($VDatastore.CapacityGB,2)
             "FreeGB"     = [math]::Round($VDatastore.FreeSpaceGB,2)
@@ -860,7 +898,7 @@ $VCServerCounter ++
             "Datacenter" = $VDatastore.Datacenter
             "vCenter"    = $VCServer
             "Path"       = $VDatastore.DatastoreBrowserPath
-        }
+        }) | Out-Null
     }
     #endregion
 
@@ -872,9 +910,9 @@ Write-Progress -Activity "vCenter server $VCServer" -Completed
 #region Output to Excel
 # Create Excel standard configuration properties
 $ExcelProps = @{
-    Autosize = $true;
-    FreezeTopRow = $true;
-    BoldTopRow = $true;
+    Autosize     = $true
+    FreezeTopRow = $true
+    BoldTopRow   = $true
 }
 
 $ExcelProps.Path = $LogFile
@@ -883,11 +921,15 @@ $ExcelProps.Path = $LogFile
 $vCenterObjectLastRow = ($vCenterObject | Measure-Object).Count + 1
 If($vCenterObjectLastRow -gt 1){
     $vCenterObjectHeaderCount = Get-ColumnName ($vCenterObject | Get-Member | Where-Object{$_.MemberType -match "NoteProperty"} | Measure-Object).Count
-    $vCenterObjectHeaderRow = "'vCenter Servers'!`$A`$1:`$$vCenterObjectHeaderCount`$1"
+    $vCenterObjectHeaderRow   = "'vCenter Servers'!`$A`$1:`$$vCenterObjectHeaderCount`$1"
+    $vCenterBuildColumn       = "'vCenter Servers'!`$D`$2:`$D`$$vCenterObjectLastRow"
 
     $vCenterObjectStyle = New-ExcelStyle -Range $vCenterObjectHeaderRow -HorizontalAlignment Center
 
-    $vCenterObject | Sort-Object "Name" | Export-Excel @ExcelProps -WorksheetName "vCenter Servers" -Style $vCenterObjectStyle
+    $vCenterConditionalFormatting = @()
+    $vCenterConditionalFormatting += New-ConditionalText -Range $vCenterBuildColumn -ConditionalType GreaterThanOrEqual '25600417' -ConditionalTextColor DarkGreen -BackgroundColor LightGreen
+
+    $vCenterObject | Sort-Object 'Name' | Export-Excel @ExcelProps -WorksheetName 'vCenter Servers' -Style $vCenterObjectStyle -ConditionalFormat $vCenterConditionalFormatting
 }
 
 # Datacenter sheet
@@ -929,10 +971,12 @@ If($VDSwitchDataLastRow -gt 1){
     $VDSwitchDataHeaderCount = Get-ColumnName ($VDSwitchData | Get-Member |Where-Object{$_.MemberType -match 'NoteProperty'} | Measure-Object).Count
     $VDSwitchDataHeaderRow = "'VDSwitches'!`$A`$1:`$$VDSwitchDataHeaderCount`$1"
     $VDSwitchStatusColumn = "'VDSwitches'!`$B`$1:`$B`$$VDSwitchDataLastRow"
+    $VDSwitchVersionColumn   = "'VDSwitches'!`$C`$2:`$C`$$VDSwitchDataLastRow"
 
     $VDSwitchDataStyle = New-ExcelStyle -Range $VDSwitchDataHeaderRow -HorizontalAlignment Center
     $VDSwitchDataConditionalFormatting = @()
     $VDSwitchDataConditionalFormatting = New-ConditionalText -Range $VDSwitchStatusColumn -ConditionalType ContainsText 'green' -ConditionalTextColor DarkGreen -BackgroundColor LightGreen
+    $VDSwitchDataConditionalFormatting = New-ConditionalText -Range $VDSwitchVersionColumn -ConditionalType Equal '8.0.3' -ConditionalTextColor DarkGreen -BackgroundColor LightGreen
 
     $VDSwitchData | Sort-Object 'Server','Name' | Export-Excel @ExcelProps -WorksheetName 'VDSwitches' -Style $VDSwitchDataStyle -ConditionalFormat $VDSwitchDataConditionalFormatting
 }
@@ -953,34 +997,44 @@ If($LicensingLastRow -gt 1){
 $AssignedLicensesLastRow = ($AssignedLicenseObject | Measure-Object).Count + 1
 If($AssignedLicensesLastRow -gt 1){
     $AssignedLicensesHeaderCount = Get-ColumnName ($AssignedLicenseObject | Get-Member | Where-Object{$_.MemberType -match "NoteProperty"} | Measure-Object).Count
-    $AssignedLicensesHeaderRow = "Assigned Licenses!`$A`$1:`$$AssignedLicensesHeaderCount`$1"
+    $AssignedLicensesHeaderRow   = "Assigned Licenses!`$A`$1:`$$AssignedLicensesHeaderCount`$1"
+    $AssignedLicensesNameColumn  = "Assigned Licenses!`$B`$2:`$B`$$AssignedLicensesLastRow"
 
     $AssignedLicensesDataStyle = @()
     $AssignedLicensesDataStyle += New-ExcelStyle -Range $AssignedLicensesHeaderRow -HorizontalAlignment Center
 
-    $AssignedLicenseObject | Sort-Object "License Name","Entity" | Export-Excel @ExcelProps -WorksheetName "Assigned Licenses" -Style $AssignedLicensesDataStyle
+    $AssignedLicenseDataConditionalFormatting = @()
+    $AssignedLicenseDataConditionalFormatting += New-ConditionalText -Range $AssignedLicensesNameColumn -ConditionalType ContainsText 'Evaluation Mode' -ConditionalTextColor Brown -BackgroundColor Yellow
+
+    $AssignedLicenseObject | Sort-Object 'License Name', 'Entity' | Export-Excel @ExcelProps -WorksheetName 'Assigned Licenses' -Style $AssignedLicensesDataStyle -ConditionalFormat $AssignedLicenseDataConditionalFormatting
 }
 
 # Host sheet
 $HostDataLastRow = ($HostData | Measure-Object).Count + 1
 If($HostDataLastRow -gt 1){
-    $HostDataHeaderCount   = Get-ColumnName ($HostData | Get-Member | Where-Object{$_.MemberType -match "NoteProperty"} | Measure-Object).Count
+    $HostDataHeaderCount = Get-ColumnName ($HostData | Get-Member | Where-Object{$_.MemberType -match 'NoteProperty'} | Measure-Object).Count
     $HostDataHeaderRow     = "Hosts!`$A`$1:`$$HostDataHeaderCount`$1"
-    $MMColumn              = "Hosts!`$D`$2:`$D`$$HostDataLastRow"
-    $LockdownColumn        = "Hosts!`$E`$2:`$E`$$HostDataLastRow"
-    $NTPColumn             = "Hosts!`$O`$2:`$O`$$HostDataLastRow"
-    $DaysCertExpiresColumn = "Hosts!`$R`$2:`$R`$$HostDataLastRow"
+    $BuildColumn           = "Hosts!`$C`$2:`$C`$$HostDataLastRow"
+    $MMColumn              = "Hosts!`$E`$2:`$E`$$HostDataLastRow"
+    $LockdownColumn        = "Hosts!`$F`$2:`$F`$$HostDataLastRow"
+    $NTPColumn             = "Hosts!`$R`$2:`$R`$$HostDataLastRow"
+    $SysLogHostColumn      = "Hosts!`$T`$2:`$T`$$HostDataLastRow"
+    $DaysCertExpiresColumn = "Hosts!`$V`$2:`$V`$$HostDataLastRow"
 
     $HostDataStyle = New-ExcelStyle -Range $HostDataHeaderRow -HorizontalAlignment Center
 
     $HostDataConditionalFormatting = @()
-    $HostDataConditionalFormatting += New-ConditionalText -Range $MMColumn -ConditionalType ContainsText "TRUE" -ConditionalTextColor Brown -BackgroundColor Yellow
-    $HostDataConditionalFormatting += New-ConditionalText -Range $LockdownColumn -ConditionalType ContainsText "lockdownDisabled" -ConditionalTextColor Brown -BackgroundColor Yellow
-    $HostDataConditionalFormatting += New-ConditionalText -Range $NTPColumn -ConditionalType ContainsBlanks -BackgroundColor Yellow
+    $HostDataConditionalFormatting += New-ConditionalText -Range $MMColumn -ConditionalType ContainsText 'TRUE' -ConditionalTextColor Brown -BackgroundColor Yellow
+    $HostDataConditionalFormatting += New-ConditionalText -Range $LockdownColumn -ConditionalType ContainsText 'lockdownDisabled' -ConditionalTextColor Brown -BackgroundColor Yellow
+    $HostDataConditionalFormatting += New-ConditionalText -Range $BuildColumn -ConditionalType Equal '24784741' -ConditionalTextColor DarkBlue -BackgroundColor LightBlue
+    $HostDataConditionalFormatting += New-ConditionalText -Range $BuildColumn -ConditionalType GreaterThanOrEqual '25595708' -ConditionalTextColor DarkGreen -BackgroundColor LightGreen
+    $HostDataConditionalFormatting += New-ConditionalText -Range $NTPColumn -ConditionalType NotEqual 'ent-time-2.ara.com, ent-time-1.ara.com' -ConditionalTextColor Brown -BackgroundColor Yellow
+    $HostDataConditionalFormatting += New-ConditionalText -Range $NTPColumn -ConditionalType NotContainsText 'ent-time-1.ara.com' -ConditionalTextColor Brown -BackgroundColor Yellow
+    $HostDataConditionalFormatting += New-ConditionalText -Range $SysLogHostColumn -ConditionalType NotContainsText 'ent-logmon-3.ara.com' -ConditionalTextColor Brown -BackgroundColor Yellow
     $HostDataConditionalFormatting += New-ConditionalText -Range $DaysCertExpiresColumn -ConditionalType LessThanOrEqual '30' -ConditionalTextColor Maroon -BackgroundColor Pink
     $HostDataConditionalFormatting += New-ConditionalText -Range $DaysCertExpiresColumn -ConditionalType LessThanOrEqual '60' -ConditionalTextColor Brown -BackgroundColor Yellow
 
-    $HostData | Sort-Object "vCenter Server","Datacenter","Cluster","Name" | Export-Excel @ExcelProps -WorkSheetname "Hosts" -Style $HostDataStyle -ConditionalText $HostDataConditionalFormatting
+    $HostData | Sort-Object 'vCenter Server', 'Datacenter', 'Cluster', 'Name' | Export-Excel @ExcelProps -WorksheetName 'Hosts' -Style $HostDataStyle -ConditionalFormat $HostDataConditionalFormatting
 }
 
 # Host NIC sheet
@@ -1012,12 +1066,15 @@ If($HostVMKDataLastRow -gt 1){
 $VMDataLastRow = ($VMData | Measure-Object).Count + 1
 If($VMDataLastRow -gt 1){
     $VMDataHeaderCount = Get-ColumnName ($VMData | Get-Member | Where-Object{$_.MemberType -match 'NoteProperty'} | Measure-Object).Count
-    $VMDataHeaderRow = "'VMs'!`$A`$1:`$$VMDataHeaderCount`$1"
-    $VMUSBAttachedRow = "'VMs'!`$P`$2:`$P`$$VMDataLastRow"
+    $VMDataHeaderRow          = "'VMs'!`$A`$1:`$$VMDataHeaderCount`$1"
+    $VMToolsVersionColumn     = "'VMs'!`$D`$2:`$D`$$VMDataLastRow"
+    $VMToolsPolicyColumn      = "'VMs'!`$F`$2:`$F`$$VMDataLastRow"
+    $VMStateColumn            = "'VMs'!`$K`$2:`$K`$$VMDataLastRow"
+    $VMUSBAttachedRow         = "'VMs'!`$P`$2:`$P`$$VMDataLastRow"
     $VMDataUsedSpaceRawColumn = "'VMs'!`$R`$2:`$R`$$VMDataLastRow"
-    $VMSnapshotColumn = "'VMs'!`$T`$2:`$T`$$VMDataLastRow"
-    $VMConsolidationColumn = "'VMs'!`$U`$2:`$U`$$VMDataLastRow"
-    $VMOrphanedColumn = "'VMs'!`$AB`$2:`$AB`$$VMDataLastRow"
+    $VMSnapshotColumn         = "'VMs'!`$T`$2:`$T`$$VMDataLastRow"
+    $VMConsolidationColumn    = "'VMs'!`$U`$2:`$U`$$VMDataLastRow"
+    $VMOrphanedColumn         = "'VMs'!`$AB`$2:`$AB`$$VMDataLastRow"
 
     $VMDataStyle = @()
     $VMDataStyle += New-ExcelStyle -Range $VMDataHeaderRow -HorizontalAlignment Center
@@ -1025,6 +1082,11 @@ If($VMDataLastRow -gt 1){
     $VMDataStyle += New-ExcelStyle -Range $VMSnapshotColumn -NumberFormat '0'
 
     $VMDataConditionalFormatting = @()
+    $VMDataConditionalFormatting += New-ConditionalText -Range $VMToolsVersionColumn -ConditionalType Equal '13317' -ConditionalTextColor DarkGreen -BackgroundColor LightGreen
+    $VMDataConditionalFormatting += New-ConditionalText -Range $VMToolsVersionColumn -ConditionalType Equal '0' -ConditionalTextColor DarkBlue -BackgroundColor LightBlue
+    $VMDataConditionalFormatting += New-ConditionalText -Range $VMToolsPolicyColumn -ConditionalType Equal 'UpgradeAtPowerCycle' -ConditionalTextColor DarkGreen -BackgroundColor LightGreen
+    $VMDataConditionalFormatting += New-ConditionalText -Range $VMToolsPolicyColumn -ConditionalType Equal 'manual' -ConditionalTextColor DarkBlue -BackgroundColor LightBlue
+    $VMDataConditionalFormatting += New-ConditionalText -Range $VMStateColumn -ConditionalType Equal 'PoweredOff' -ConditionalTextColor Brown -BackgroundColor Yellow
     $VMDataConditionalFormatting += New-ConditionalText -Range $VMSnapshotColumn -ConditionalType GreaterThanOrEqual '1' -ConditionalTextColor Brown -BackgroundColor Yellow
     $VMDataConditionalFormatting += New-ConditionalText -Range $VMConsolidationColumn -ConditionalType ContainsText 'TRUE' -ConditionalTextColor Brown -BackgroundColor Yellow
     $VMDataConditionalFormatting += New-ConditionalText -Range $VMUSBAttachedRow -ConditionalType ContainsText 'TRUE' -ConditionalTextColor Brown -BackgroundColor Yellow
