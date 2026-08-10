@@ -12,11 +12,14 @@ Gather information from specified vCenter servers and outputs to Excel
 #Requires -Modules ImportExcel, VMware.PowerCLI.VCenter
 
 #region Configure variables
-$Date = Get-Date -Format yyyyMMdd
+$Date = Get-Date -Format yyyyMMdd-hhmm
 # File name and folder location where spreadsheet will be created
 $LogFile = "C:\Logs\vCenter\vCenter_Report_$Date.xlsx"
 # vCenter servers
-$VCServers = @("vcenter-1.acme.com","vcenter-2.acme.com")
+$VCServers = @(
+    "vcenter-1.acme.com"
+    "vcenter-2.acme.com"
+)
 # Logon credentials. NOTE: if login account changes a new credential file will be created!
 $LoginAccount = "vcenterer@acme.com"
 # Folder location where credential file will be created and stored; file name will be created automatically
@@ -134,7 +137,6 @@ Function Get-ColumnName ([int]$ColumnCount){
 [System.Collections.ArrayList]$VMHardDiskData = @()
 [System.Collections.ArrayList]$DatastoresData = @()
 [System.Collections.ArrayList]$SnapshotData = @()
-$LicenseDataCounter = 0
 $VCServerCounter = 0
 #endregion
 
