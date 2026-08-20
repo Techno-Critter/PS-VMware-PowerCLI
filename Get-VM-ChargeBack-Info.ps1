@@ -172,15 +172,16 @@ ForEach($VCServer in $VCServers){
         ForEach($VMachine in $VMachines){
             # Reset variables for each VM
             $VMCounter ++
-            $CPUCost                 = $null
-            $CPUCurrency             = $null
-            $RAMCost                 = $null
-            $RAMCurrency             = $null
-            $StorageCost             = $null
-            $StorageCurrency         = $null
-            $VMTotalHDChargeCapacity = $null
-            $MonthlyRate             = $null
-            $MonthlyCurrency         = $null
+            $CPUCost                    = $null
+            $CPUCurrency                = $null
+            $RAMCost                    = $null
+            $RAMCurrency                = $null
+            $StorageCost                = $null
+            $StorageCurrency            = $null
+            $VMTotalHDChargeCapacity    = $null
+            $MonthlyRate                = $null
+            $MonthlyCurrency            = $null
+            $VMTotalHardDiskCapacityRaw = $null
 
             Write-Progress -Activity "vCenter server $VCServer" -Status 'Gathering virtual machine information...' -CurrentOperation $VMachine.Name -PercentComplete ($VMCounter * 100 / ($VMachines | Measure-Object).Count)
 
@@ -197,9 +198,6 @@ ForEach($VCServer in $VCServers){
                     }) | Out-Null
             }
 
-            # Reset variable for each VMHD
-            $VMTotalHardDiskCapacityRaw = $null
-
             ForEach($VMHardDisk in $VMHardDiskProps){
                 If($VMHardDisk.CapacityGB){
                     $VMDKRawCapacity = $VMHardDisk.CapacityGB * 1GB
@@ -214,6 +212,10 @@ ForEach($VCServer in $VCServers){
             $VMTotalHDChargeCapacity = $VMTotalHardDiskCapacityRaw - $VMStorageExemptionRaw
             If($VMTotalHDChargeCapacity -lt '0'){
                 $VMTotalHDChargeCapacity = '0'
+            }
+            
+            If($null -eq $VMTotalHardDiskCapacityRaw){
+                $VMTotalHardDiskCapacityRaw = '0'
             }
             #endregion
 
