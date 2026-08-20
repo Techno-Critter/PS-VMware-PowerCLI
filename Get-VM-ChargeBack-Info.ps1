@@ -151,10 +151,10 @@ ForEach($VCServer in $VCServers){
     }
     Catch{
         $vCenterError.Add([PSCustomObject]@{
-                'Object' = 'vCenter'
-                'Name'   = $VCServer
-                'Error'  = "The server $VCServer did not accept the connection request. This vCenter server will be skipped."
-            }) | Out-Null
+            'Object' = 'vCenter'
+            'Name'   = $VCServer
+            'Error'  = "The server $VCServer did not accept the connection request. This vCenter server will be skipped."
+        }) | Out-Null
         Continue
     }
 #endregion
